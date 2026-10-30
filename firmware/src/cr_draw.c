@@ -2456,6 +2456,39 @@ static void cr_kr_arp(const cr_screen_t *s)
     }
 }
 
+/* SHAYPE's view-model uses native theme tokens and the native knob row. */
+static void cr_kr_shape(const cr_screen_t *s)
+{
+    uint32_t i, row, cols = s->shape.steps < 16u ? s->shape.steps : 16u;
+    uint32_t cursor = s->shape_edit ? s->shape_step : (uint8_t)s->pos, start = cursor / 16u * 16u;
+    int cw = 208 / (int)(cols ? cols : 1), y = CR_PY0 + 20;
+    for (row = 0; row < 8; row++)
+        cr_fill(16, y + row * 8 + 6, cw * (int)cols, 1, T_LINE);
+    for (i = 0; i <= cols; i++)
+        cr_fill(16 + (int)i * cw, y, 1, 63, T_LINE);
+    for (i = 0; i < s->shape.pat.n; i++) {
+        uint32_t a = ARP_STEP(s->shape.pat.note[i]), b = a + ARP_LEN(s->shape.pat.note[i]);
+        row = ARP_ROW(s->shape.pat.note[i]);
+        if (a >= s->shape.steps || b <= start || a >= start + cols)
+            continue;
+        if (b > s->shape.steps)
+            b = s->shape.steps;
+        if (b > start + cols)
+            b = start + cols;
+        if (a < start)
+            a = start;
+        cr_fill(17 + (int)(a - start) * cw, y + (7 - (int)row) * 8 + 1, (int)(b - a) * cw - 2, 5, T_THEME);
+    }
+    if (s->shape_edit) {
+        int x = 16 + (int)(cursor - start) * cw, yy = y + (7 - s->shape_row) * 8;
+        cr_fill(x, yy, cw, 1, T_ACCENT);
+        cr_fill(x, yy + 7, cw, 1, T_ACCENT);
+        cr_fill(x, yy, 1, 8, T_ACCENT);
+        cr_fill(x + cw - 1, yy, 1, 8, T_ACCENT);
+    } else
+        cr_fill(16 + (int)(cursor - start) * cw, y + 65, cw - 1, 2, T_ACCENT);
+}
+
 static void cr_p_knobrow(const cr_screen_t *s, const cr_frame_t *fr, int32_t ph)
 {
     int32_t n = s->n_items, sel = s->sel < n ? s->sel : n - 1, size = s->size ? s->size : 34, ry = cr_kr_rowy(s);
@@ -2468,7 +2501,9 @@ static void cr_p_knobrow(const cr_screen_t *s, const cr_frame_t *fr, int32_t ph)
         if (s->kr_band == 1u) {                      /* the keyboard (KEY): the 224 px strip, <= 56 px tall, centred */
             int32_t avail = ry - CR_PY0 - 18 - 6, kh = avail < 56 ? avail : 56;
             cr_keyboard(s, CR_PY0 + 18 + (avail - kh) / 2, kh);
-        } else if (s->kr_band == 2u) {               /* the arp (PERF, notes stepping) */
+        } else if (s->kr_band == 3u) {
+            cr_kr_shape(s);
+        } else if (s->kr_band == 2u) { /* the arp (PERF, notes stepping) */
             cr_kr_arp(s);
         } else if (n > 0) {
             int32_t bw = cr_tw(cr_item(s, sel), (uint32_t)size, 1);
@@ -3374,6 +3409,8 @@ static uint32_t cr_lm_strips(const cr_screen_t *s, int marks)
 static uint32_t cr_arp_strips(const cr_screen_t *s)
 {
     int32_t by = CR_PY0 + cr_ph(s) - 46;
+    if (s->kind == CR_K_KNOBROW && s->kr_band == 3u)
+        return cr_strips_of(CR_PY0 + 20, CR_PY0 + 88);
     if (s->kind == CR_K_KNOBROW && s->kr_band == 2u)             /* the PERF layer's band (cr_kr_arp): not the row's */
         return cr_strips_of(CR_KA_BY(s) - 40, CR_KA_BY(s) + 14);
     if (s->kind != CR_K_ARP) return (1u << CR_NSTRIP) - 1u;

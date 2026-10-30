@@ -6,6 +6,7 @@
 #define CR_ENGINE_H
 
 #include <stdint.h>
+#include "cr_shape.h"
 
 /* ------------------------------------------------------------- sizes --- */
 #ifndef CR_MAX_VOICES
@@ -22,7 +23,8 @@
 #define CR_CHORD_MAX 8           /* notes in one chord: 3 + 4 extensions = 7 */
 #define CR_OWN_MAX 32            /* notes one performance owner may hold (7 notes x 4 octaves) */
 #define CR_SEQ_MAX 56            /* arp sequence: up/down over 28 notes */
-#define CR_NPATTERN 12
+#define CR_NPATTERN 13
+#define CR_PATTERN_SHAYPE 13
 #define CR_SUP_MAX 12            /* chord-name superscript buffer ("add4 7 6", "5 JAZZ") */
 
 /* ----------------------------------------------------------- streams --- */
@@ -70,9 +72,11 @@ typedef enum { CR_PM_STRUM, CR_PM_SLOP, CR_PM_ARP, CR_PM_PATTERN, CR_PM_HARP } c
 typedef enum { CR_DIR_UP, CR_DIR_DOWN, CR_DIR_UPDOWN, CR_DIR_DOWNUP, CR_DIR_PLAYED, CR_DIR_RANDOM } cr_dir_t;
 typedef enum {                   /* design.md 12.3, editor order x5..x16 */
     CR_DIV_2_1, CR_DIV_1_1, CR_DIV_1_2, CR_DIV_1_2T, CR_DIV_1_4, CR_DIV_1_4T,
-    CR_DIV_1_8, CR_DIV_1_8T, CR_DIV_1_16, CR_DIV_1_16T, CR_DIV_1_32, CR_DIV_1_32T
+    CR_DIV_1_8, CR_DIV_1_8T, CR_DIV_1_16, CR_DIV_1_16T, CR_DIV_1_32, CR_DIV_1_32T,
+    CR_DIV_1_1T, CR_DIV_1_64, CR_DIV_1_64T, CR_DIV_1_1D, CR_DIV_1_2D, CR_DIV_1_4D,
+    CR_DIV_1_8D, CR_DIV_1_16D, CR_DIV_1_32D, CR_DIV_1_64D
 } cr_div_t;
-#define CR_DIV_COUNT 12
+#define CR_DIV_COUNT 22
 typedef enum {                   /* per-mode performance parameters (design.md 12) */
     CR_P_RATE,                   /* strum / slop / harp: 120-BPM reference interval, ms (1..1000) */
     CR_P_DIV,                    /* arp / pattern: cr_div_t */
@@ -95,9 +99,10 @@ typedef struct { uint8_t live, n, note; } cr_bown_t;                 /* bass own
 
 typedef struct {
     uint8_t on, mode, nseq;
-    uint16_t rem;                /* anchor fraction, 1/bpm ms */
+    uint16_t rem;                /* anchor fraction, 1/(4*bpm) ms */
     uint32_t anchor;             /* ms; step k lands at anchor + pos(k) (beat-accumulated, no drift) */
     uint32_t step, pos;          /* timing step since anchor / melodic position */
+    int32_t shape_offset;        /* retained through the SHAYPE pass (including random direction) */
     uint8_t seq[CR_SEQ_MAX];     /* arp order, or the range-expanded notes for pattern */
 } cr_clk_t;
 
@@ -162,11 +167,12 @@ typedef struct {
                                       * sounding (Chord; the scale's when none) instead of nothing (cr_snap_note);
                                       * in the padding after the three streams: cr_t keeps its size */
     int16_t par[CR_PM_COUNT][CR_P_COUNT];
+    cr_shape_t shape;            /* WaveLoop SHAYPE; saved in the session extension */
     /* runtime */
     cr_out_t out;
     uint32_t now, serial, rng, gid;
     uint8_t started;
-    uint32_t clk_anchor, clk_units;  /* global transport anchor (ms) and 1/24-beat units rebased so far */
+    uint32_t clk_anchor, clk_units;  /* global transport anchor (ms) and 1/96-beat units rebased so far */
     uint16_t clk_rem;
     uint8_t reg[CR_NSTREAM][128];    /* note registry: refcount per (stream, note) (design.md 17) */
     uint8_t phys[128];               /* physically held root presses: bit id per note (the key pressed, before Snap) */
@@ -192,6 +198,8 @@ typedef struct {
 
 /* -------------------------------------------------------------- core --- */
 void cr_init(cr_t *c, const cr_out_t *out);
+void cr_set_shape(cr_t *c, const cr_shape_t *shape);
+uint32_t cr_div_turn(uint32_t id, int delta);
 void cr_seed(cr_t *c, uint32_t seed);              /* random order / slop jitter */
 void cr_tick(cr_t *c, uint32_t now_ms);            /* run the scheduler up to now (every ~1-3 ms) */
 void cr_key(cr_t *c, uint8_t midi_note, uint8_t vel, int down);

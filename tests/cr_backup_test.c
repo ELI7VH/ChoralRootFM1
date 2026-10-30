@@ -245,6 +245,7 @@ static void qb_v3(uint8_t *b)
         b[2 + i] = (uint8_t)(quad_range_v3(i).def - quad_range_v3(i).min);
 }
 
+#ifndef CR_SHAPE_EMBED
 int main(void)
 {
     uint32_t n, i, k;
@@ -326,7 +327,7 @@ int main(void)
     CHECK(!t_send(&n), "an editor command (GET 2) gets no reply");
 
     /* ---- an empty device: every object listed, sizes 0 but the settings ---- */
-    CHECK(t_list() == 0 && nman == 34, "LIST on a fresh flash: 34 objects (0.22: the pool's 13 banks for the legacy 8)");
+    CHECK(t_list() == 0 && nman == 35, "LIST on a fresh flash: 35 objects (0.22: the pool's 13 banks for the legacy 8)");
     for (i = 0, k = 0; i < nman; i++) k += man[i].size != 0;
     CHECK(k <= 1, "fresh flash: nothing stored (the settings at most)");
 
@@ -431,7 +432,7 @@ int main(void)
     {
         static const uint8_t ids[34] = {1, 8, 14, 15, 16, 17, 18, 19, 20, 21, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61,
                                         62, 23, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49};
-        int same = nman == 34;
+        int same = nman == 35;
         for (i = 0; same && i < 34; i++) same = man[i].id == ids[i];
         CHECK(same, "LIST: ids 1 8 14..21 (the CZ-1 banks) 50..62 (the pool's banks, 0.22) 23 (the favourites, after the sounds) 40..49 in order");
     }
@@ -469,7 +470,7 @@ int main(void)
         int rc = 0;
         for (i = 0; i < nref && !rc; i++) {
             const obj_t *o = &ref[i];
-            if (o->id == 1) continue;                /* the settings last, as the page does */
+            if (o->id == 1 || o->id == 69) continue;                /* the settings last, as the page does */
             rc = t_put(o->id, o->bytes, o->size);
             if (rc) printf("  restore id %u: rc %d\n", o->id, rc);
         }
@@ -488,6 +489,8 @@ int main(void)
                   "restore: the settings committed: the session object is empty (the restart comes up on the settings alone)");
             CHECK(crs_obj_crc == st_crc32(&crs_rec, sizeof crs_rec), "restore: the session's binding follows the restored object");
         }
+        { const obj_t *session=find(ref,nref,69);
+          CHECK(session && t_put(69,session->bytes,session->size)==0,"restore: SHAYPE session after settings"); }
         CHECK(rc == 0 && cr_restore_lock && CR_SETTINGS_BUSY(), "restore: settings committed, the settings saves held until the restart");
     }
     {
@@ -1505,3 +1508,5 @@ int main(void)
     printf("%s: %d checks, %d failed\n", fails ? "CR BACKUP TESTS FAILED" : "cr backup tests passed", checks, fails);
     return fails ? 1 : 0;
 }
+
+#endif /* CR_SHAPE_EMBED */

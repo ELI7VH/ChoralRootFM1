@@ -1,3 +1,14 @@
+# ChoralRoot + SHAYPE — WaveLoop candidate
+
+Adds the drawn Shape Arp to **ChoralRoot FM-1**, using its native interface and SAVE workflow.
+Hold ARP → SELECT Pattern → K1 SHAYPE (13). [Controls and developer guide](docs/SHAYPE.md).
+
+Built and host/emulator tested; **not installed on hardware**. This is the next candidate after the CoralFlower test.
+The upstream installer/browser links below use upstream ChoralRoot; this fork is built from its own source.
+[WaveLoop kit](https://github.com/lucian-labs/fm1-waveloop-kits).
+
+---
+
 # ChoralRoot FM-1
 
 A Telepathic Orchid-style chord instrument as a firmware for the **M-VAVE FM-1**: one hand plays

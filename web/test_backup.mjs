@@ -135,6 +135,16 @@ const crObjs = [[1, per(S5, PER5, 7)], [6, rnd(3080, 8)], [8, rnd(3612, 9)], [9,
      "choralroot: round trip: every object restored byte for byte, none skipped");
   ok(order.at(-1) === 1 && order.includes(9) && order.includes(10) && order.includes(11) && order.includes(49),
      "choralroot: the settings last, the VA and FM6 patches and loops before");
+  // WaveLoop's session extension restores after the settings, whose PUT clears an older session.
+  const shapeIds = [...crOpt.ids, 69];
+  const shapeSource = device([...crObjs, [69, rnd(1156, 69)]], { ...crOpt, ids: shapeIds });
+  const shapeFile = await captureBackup(shapeSource.request);
+  const shapeTarget = device([], { ...crOpt, ids: shapeIds });
+  await restoreBackup(shapeTarget.request, shapeFile);
+  const shapeOrder = shapeTarget.log.filter((x) => typeof x === "number");
+  ok(shapeOrder.at(-1) === 69 && shapeOrder.at(-2) === 1 && shapeTarget.objs.get(69).length === 1156,
+     "SHAYPE: extended session restored after settings, keeping the pattern");
+
   ok(busies === 1 && blank.log[0] === "busy 6", "choralroot: a busy answer (a loop plays) is retried after a second");
   await restartDevice(blank.request);
   ok(blank.restarts === 1, "choralroot: RESTART");

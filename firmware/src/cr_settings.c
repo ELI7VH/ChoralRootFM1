@@ -419,6 +419,7 @@ void cr_session_defaults(cr_session_t *x)
     for (i = 0; i < sizeof *x; i++)
         ((uint8_t *)x)[i] = 0;
     css_fx_defaults(&x->fx);
+    cr_shape_defaults(&x->shape);
     cr_session_seal(x);
 }
 void cr_session_seal(cr_session_t *x)
@@ -519,6 +520,8 @@ int cr_session_import(cr_session_t *x, const void *blk, uint32_t n)
     if (use < (uint32_t)((const uint8_t *)&x->fx - (const uint8_t *)x) + (uint32_t)sizeof x->fx)
         css_fx_defaults(&x->fx);
     /* version-specific migrations go here, as cr_settings_import's: if (h.version < 2u) x->new_field = ...; */
+    if (!cr_shape_valid(&x->shape))
+        cr_shape_defaults(&x->shape);
     css_sanitize(x);
     cr_session_seal(x);
     return h.version == CSS_VERSION && h.size == CSS_SIZE ? 1 : 2;
@@ -1007,6 +1010,7 @@ static void css_capture(cr_session_t *x)
     uint32_t i;
     cr_session_defaults(x);
     fm1_irq_off();
+    x->shape = cr.shape;
     x->voicing = cr.voicing;
     fm1_irq_on();
     x->octave = cu.octave;
@@ -1036,6 +1040,10 @@ static void css_apply(const cr_session_t *x)
 {
     uint32_t i, m, got[2];
     int v;
+    fm1_irq_off();
+    cr_set_shape(&cr, &x->shape);
+    fm1_irq_on();
+    cu_shape = x->shape;
     got[0] = (uint32_t)css_part_put(0, &x->part[0]);
     got[1] = (uint32_t)css_part_put(1, &x->part[1]);
     for (i = 0; i < NELEM(CSS_FXG); i++)             /* (a tag not stored, a value out of range: the default stays; a

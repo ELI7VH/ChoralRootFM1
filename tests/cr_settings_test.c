@@ -1130,8 +1130,8 @@ static void t_session(void)
     unsigned off_part = (unsigned)((const uint8_t *)&SX.part[0] - (const uint8_t *)&SX);
     /* the record */
     cr_session_defaults(&SD);
-    ok(sizeof(cr_session_t) == CSS_SIZE && CSS_SIZE == 1024u && CSS_SIZE <= ST_PAYLOAD_MAX,
-       "session: 1024 bytes, a quarter of the object's payload");
+    ok(sizeof(cr_session_t) == CSS_SIZE && CSS_SIZE == 1156u && CSS_SIZE <= ST_PAYLOAD_MAX,
+       "session: 1156 bytes, original prefix plus SHAYPE");
     ok(SD.magic == CSS_MAGIC && SD.version == CSS_VERSION && SD.size == CSS_SIZE && !SD.voicing && !SD.octave &&
        !SD.bass_on && !SD.lock && !SD.latched && !SD.part[0].valid && !SD.part[1].valid && SD.fx.version == CSS_FX_VERSION &&
        SD.fx.n == 0 && SD.fx.sel == CSS_FXE_REVERB && SD.fx.amt[0] == CSS_FX_NONE && SD.fx.amt[CSS_NFXE - 1] == CSS_FX_NONE,

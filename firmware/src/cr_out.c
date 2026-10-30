@@ -952,6 +952,7 @@ typedef struct {
     cr_chord_info_t ci;
     uint8_t mods_held, mods_active, latching, perform_on, perform_mode, bass_on, playstyle;
     int8_t voicing, bass_voicing;
+    uint8_t shape_pos;
     int perf_pos;
     uint8_t perf_note;
     uint8_t perf_step;               /* the shown chord is being arpeggiated (cr_perform_stepping): the arp screen */
@@ -991,6 +992,8 @@ static void cr_snapshot(void)
     cr_snap.playstyle = cr.playstyle;
     cr_snap.voicing = cr.voicing;
     cr_snap.bass_voicing = cr.bass_voicing;
+    cr_snap.shape_pos = cr.disp_vi < CR_NVOICE && cr.v[cr.disp_vi].clk.pos ?
+        (uint8_t)((cr.v[cr.disp_vi].clk.pos-1u)%cr.shape.steps):0;
     cr_snap.perf_pos = cr_perform_pos(&cr, &cr_snap.perf_note);
     cr_snap.perf_step = (uint8_t)cr_perform_stepping(&cr);
     cr_snap.scale_mask = cr_scale_mask(&cr);

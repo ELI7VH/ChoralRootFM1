@@ -11,6 +11,7 @@
 #ifndef CR_SETTINGS_H
 #define CR_SETTINGS_H
 #include <stdint.h>
+#include "cr_shape.h"
 
 #define CRS_MAGIC 0x31535243u           /* "CRS1" */
 #define CRS_VERSION 15u                 /* v15 (0.18): the layout of v14, and beside it the session (cr_session_t below) */
@@ -300,8 +301,8 @@ static inline void crs_pool_set(cr_settings_t *s, unsigned part, unsigned r, uin
  * written beside: a session left behind by a downgrade, a restore or another firmware's erase is not applied over
  * settings it does not belong to */
 #define CSS_MAGIC 0x31535343u           /* "CSS1" */
-#define CSS_VERSION 1u
-#define CSS_SIZE 1024u
+#define CSS_VERSION 2u
+#define CSS_SIZE 1156u
 #define CSS_HDR 12u
 #define CSS_NP 96                       /* a part's parameters (core.h P_COUNT, 91 today: cr_settings.c checks) */
 #define CSS_BLOB 160                    /* .. its deep patch (core.h ENG_BLOB_MAX) */
@@ -405,6 +406,7 @@ typedef struct {
     css_fx_t fx;                        /* (rsv_fx[4] after it until the routing (issue 21): its entry took it) */
     css_part_t part[2];                 /* chord, bass */
     uint8_t rsv_end[60];
+    cr_shape_t shape;                   /* WaveLoop v2 extension, offset 1024; old prefix unchanged */
 } cr_session_t;
 
 void cr_session_defaults(cr_session_t *x);         /* nothing stored: the unit as it powers on without a session */

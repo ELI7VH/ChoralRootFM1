@@ -20,7 +20,7 @@ export const CR_CZ_BANK_IDS = Array.from({ length: 8 }, (_, k) => 14 + k);
 export const CR_BACKUP_IDS = [1, 6, 7, 8, 9, 10, 11, 12, 13, ...CR_CZ_BANK_IDS, 22, 23, ...CR_LOOP_IDS];  // ChoralRoot's (9:
                                          // the VA patches, 10 11: the FM6 patches, 12 13: the CZ-1 tones, 14..21: the
                                          // CZ-1 banks, 22: the FM TONE patches, 23: the favorites, 40..49: loops)
-const KNOWN = new Set([...BACKUP_IDS, ...CR_BACKUP_IDS]);
+const KNOWN = new Set([...BACKUP_IDS, ...CR_BACKUP_IDS, 69]);
 export const BACKUP_CMD = { INFO: 1, LIST: 65, GET: 66, PUT: 67, RESTART: 72 };
 const BACKUP_CHUNK = 256;
 const isSample = (id) => id >= 32 && id <= 34;
@@ -29,6 +29,7 @@ export function objectName(id) {
   if (id === 0) return "current music";
   if (id === 1) return "settings";
   if (id >= 2 && id <= 5) return `project ${id - 1}`;
+  if (id === 69) return "session + SHAYPE";
   if (id === 6 || id === 7) return `user sounds ${id === 6 ? "1-16" : "17-32"}`;
   if (id === 8) return "FM6 patch bank";
   if (id === 9) return "VA patches";
@@ -184,7 +185,7 @@ export async function restoreBackup(request, file, onProgress = () => {}, opts =
   };
   const put = async (args) => { const a = await ask([BACKUP_CMD.PUT, args]); bkCheck(a[2]); return a; };
   // Restore the live music last, the settings before it. Objects commit one by one; a disconnect can leave a partial restore.
-  const order = [...plan.filter((o) => o.id > 1), ...plan.filter((o) => o.id === 1), ...plan.filter((o) => o.id === 0)];
+  const order = [...plan.filter((o) => o.id > 1 && o.id !== 69), ...plan.filter((o) => o.id === 1), ...plan.filter((o) => o.id === 69), ...plan.filter((o) => o.id === 0)];
   for (const o of order) {
     if (isSample(o.id)) {
       const slot = o.id - 32;

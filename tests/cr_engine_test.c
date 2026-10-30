@@ -1445,8 +1445,8 @@ static void s_live(void)
        "performance defaults (design.md 21)");
     cr_set_param(&C, CR_PM_ARP, CR_P_GATE, 0);
     ok(cr_get_param(&C, CR_PM_ARP, CR_P_GATE) == 1, "gate clamps to >= 1%");
-    cr_set_param(&C, CR_PM_PATTERN, CR_P_PATTERN, 13);
-    ok(cr_get_param(&C, CR_PM_PATTERN, CR_P_PATTERN) == 12, "pattern clamps to 12");
+    cr_set_param(&C, CR_PM_PATTERN, CR_P_PATTERN, 14);
+    ok(cr_get_param(&C, CR_PM_PATTERN, CR_P_PATTERN) == 13, "pattern clamps to SHAYPE slot 13");
     clear();
 }
 
@@ -1941,7 +1941,7 @@ static void s_tables(void)
         snprintf(nm, sizeof nm, "pattern %d named %s", k, cr_pattern_name(k));
         ok(cr_pattern_name(k)[0] != 0, nm);
     }
-    ok(!strcmp(cr_pattern_name(1), "pulse") && !strcmp(cr_pattern_name(12), "ladder") && !cr_pattern_name(13)[0], "pattern names: pulse .. ladder");
+    ok(!strcmp(cr_pattern_name(1), "pulse") && !strcmp(cr_pattern_name(12), "ladder") && !strcmp(cr_pattern_name(13), "SHAYPE"), "pattern names: pulse .. ladder, SHAYPE appended");
     ok(sizeof(cr_t) < 16384, "cr_t fits in 16 KB");
     printf("     [once] sizeof(cr_t) = %u bytes\n", (unsigned)sizeof(cr_t));
 }
@@ -3053,6 +3053,7 @@ static void s_solfege(void)
        "solfege: all 2304 cells written and ended (the longest: 4 characters), each with its numeral's accidental, case and mark");
 }
 
+#ifndef CR_SHAPE_EMBED
 int main(void)
 {
     s_tables();
@@ -3067,3 +3068,5 @@ int main(void)
     printf("\n%d passed, %d failed\n", passed, failed);
     return failed ? 1 : 0;
 }
+
+#endif /* CR_SHAPE_EMBED */

@@ -59,6 +59,7 @@
 #define CRB_HDR2 0x4Cu
 enum { CRB_INFO = 1, CRB_LIST = 65, CRB_GET, CRB_PUT, CRB_RESTART = 72, CRB_DEBUG = 73, CRB_SCREEN, CRB_CORE1_TEST, CRB_SELECT,
        CRB_STUB, CRB_PEAK, CRB_USB, CRB_IMPORT };
+#define CRB_SESSION 69u                              /* versioned session including WaveLoop SHAYPE */
 #define CRB_LOOP0 40u                                /* loop slot k: id 40 + k */
 #define CRB_VA 9u
 #define CRB_FM6S 10u                                 /* 10, 11: the FM6 patch store's halves */
@@ -73,14 +74,15 @@ enum { CRB_INFO = 1, CRB_LIST = 65, CRB_GET, CRB_PUT, CRB_RESTART = 72, CRB_DEBU
  * slots of SP_SLOT: the record and its patch). The legacy sound objects (6, 7, 9..13, 22) are not listed any more (this
  * firmware never writes them); a PUT of one is still taken: an older backup, imported into slots 1..32 (crb_legacy) */
 #define CRB_POOL 50u                                 /* (not 24..36: Felucca's sample ids 32..34 are refused) */
-static const uint8_t CRB_IDS[] = {1, 8, 14, 15, 16, 17, 18, 19, 20, 21, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62,
-                                  CRB_FAVS, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49};
+static const uint8_t CRB_IDS[] = {1,  8,  14, 15, 16, 17,       18, 19, 20, 21, 50, 51, 52, 53, 54, 55, 56,         57,
+                                  58, 59, 60, 61, 62, CRB_FAVS, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, CRB_SESSION};
 _Static_assert(SP_NBANK == 13u && CRB_POOL >= CRB_LOOP0 + CRL_SLOTS && CRB_POOL + SP_NBANK <= 64u &&
                ST_PAYLOAD_MAX <= sizeof cu_loop_buf, "backup ids: the pool's banks 50..62 stage in cu_loop_buf");
 static int crb_is_pool(uint32_t id) { return id >= CRB_POOL && id < CRB_POOL + SP_NBANK; }
 #else
-static const uint8_t CRB_IDS[] = {1, 6, 7, 8, CRB_VA, CRB_FM6S, CRB_FM6S + 1u, CRB_CZS, CRB_CZS + 1u, 14, 15, 16, 17, 18, 19,
-                                  20, 21, CRB_QUAD, CRB_FAVS, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49};
+static const uint8_t CRB_IDS[] = {1,  6,  7,  8,  CRB_VA, CRB_FM6S,   CRB_FM6S + 1u, CRB_CZS, CRB_CZS + 1u, 14, 15, 16,
+                                  17, 18, 19, 20, 21,     CRB_QUAD,   CRB_FAVS,      40,      41,           42, 43, 44,
+                                  45, 46, 47, 48, 49,     CRB_SESSION};
 static int crb_is_pool(uint32_t id) { (void)id; return 0; }
 #endif
 _Static_assert(sizeof(quad_store_t) <= CRL_REC_MAX, "backup: the QUAD store stages too");
@@ -203,6 +205,10 @@ static int crb_is_loop(uint32_t id) { return id >= CRB_LOOP0 && id < CRB_LOOP0 +
 static uint32_t crb_obj(uint32_t id)                 /* storage.c's object of ids 1, 6..22 */
 {
 #if FELUCCA_QUAD
+#if FELUCCA_CZ
+    if (id == CRB_SESSION)
+        return OBJ_SESSION;
+#endif
     if (id == CRB_QUAD)
         return OBJ_QUADSTORE;
 #if FELUCCA_CZ
@@ -368,6 +374,10 @@ static int crb_panel_ok(const panel_t *p)
 }
 static int crb_size_ok(uint32_t id, uint32_t len)   /* a begin's size for this id */
 {
+#if FELUCCA_CZ && FELUCCA_QUAD
+    if (id == CRB_SESSION)
+        return !len || (len >= CSS_HDR + 4u && len <= CSS_SIZE);
+#endif
     if (id == 1u)                                    /* PER1 (8 + panel) .. PER5 (this record) */
         return len >= 8u + sizeof(panel_t) && len <= sizeof(persist_t);
     if (id == 6u || id == 7u)
@@ -603,6 +613,20 @@ static uint32_t crb_commit(void)
     uint32_t id = crb.id, len = crb.len;
     if (crb.pos != len || st_crc32(raw, len) != crb.crc)
         return 2;
+#if FELUCCA_CZ && FELUCCA_QUAD
+    if (id == CRB_SESSION) {
+        if (len && !cr_session_import(&css_buf, raw, len))
+            return 2;
+        if (len) {
+            css_buf.bind = crs_obj_crc;
+            cr_session_seal(&css_buf);
+        }
+        if (st_save(OBJ_SESSION, &css_buf, len ? CSS_SIZE : 0u))
+            return 4;
+        cr_restore_lock = 1;
+        return 0;
+    }
+#endif
     if (id == 1u) {                                  /* settings: Felucca's fields migrated, ChoralRoot's block checked */
         persist_t *p = (persist_t *)raw;
         const panel_t *pn = (const panel_t *)(raw + (len == 8u + sizeof(panel_t) ? 8u : 16u));

@@ -499,8 +499,9 @@ static const struct { const char *name; int16_t min, max, step; } CU_PAR[CR_P_CO
     {"rate", 1, 1000, 5}, {"division", 0, CR_DIV_COUNT - 1, 1}, {"direction", 0, 5, 1}, {"range", 1, 4, 1},
     {"gate", 1, 200, 5}, {"swing", 50, 90, 1}, {"retrigger", 0, 1, 1}, {"pattern", 1, CR_NPATTERN, 1},
     {"rotate", -12, 12, 1}, {"amount", 0, 100, 5}, {"hold", 0, 1, 1}};
-static const char *const CU_DIV[CR_DIV_COUNT] = {"2/1", "1/1", "1/2", "1/2T", "1/4", "1/4T", "1/8", "1/8T", "1/16",
-                                                 "1/16T", "1/32", "1/32T"};
+static const char *const CU_DIV[CR_DIV_COUNT] = {"2/1",  "1/1",   "1/2",  "1/2T",  "1/4",   "1/4T", "1/8",   "1/8T",
+                                                 "1/16", "1/16T", "1/32", "1/32T", "1/1T",  "1/64", "1/64T", "1/1D",
+                                                 "1/2D", "1/4D",  "1/8D", "1/16D", "1/32D", "1/64D"};
 static const char *const CU_DIR[6] = {"up", "down", "up-down", "down-up", "as played", "random"};
 
 /* FX (docs/FX.md): four effects on nine pages (SELECT: Sends, Reverb 1, Reverb 2, Chorus, Delay 1, Delay 2, Drive,
@@ -617,6 +618,77 @@ static struct {
                                            * cr_settings.h smk_pedal; cr_smk_pedal) */
 #endif
 } cs;
+
+/* SHAYPE stays in Pattern slot 13; native modes and the persisted mode count are unchanged. */
+static cr_shape_t cu_shape;
+static uint8_t cu_shape_page, cu_shape_step, cu_shape_row, cu_shape_len = 1;
+static const char *const CU_SHDIR[] = {"Up", "Down", "Pend", "Random", "Wyndo", "Shyft"};
+static int cu_shape_on(void) { return cs.perf_sel == 5u && cs.par[CR_PM_PATTERN][CR_P_PATTERN] == CR_PATTERN_SHAYPE; }
+static int cu_shape_cell(void)
+{
+    uint32_t i;
+    for (i = 0; i < cu_shape.pat.n; i++)
+        if (ARP_STEP(cu_shape.pat.note[i]) == cu_shape_step && ARP_ROW(cu_shape.pat.note[i]) == cu_shape_row)
+            return (int)i;
+    return -1;
+}
+static int cu_shape_limit(int n, int lo, int hi) { return n < lo ? lo : n > hi ? hi : n; }
+static void cu_shape_publish(void)
+{
+    fm1_irq_off();
+    cr_set_shape(&cr, &cu_shape);
+    fm1_irq_on();
+}
+static void cu_shape_turn(uint32_t k, int d)
+{
+    int at = cu_shape_cell();
+    if (cu_shape_page == 0) {
+        if (!k) {
+            if (d < 0 && cu_shape.preset == 0u) {
+                cs.par[CR_PM_PATTERN][CR_P_PATTERN] = 12;
+                cr_post(CRE_PARAM, CR_PM_PATTERN, CR_P_PATTERN, 12);
+                return;
+            }
+            cu_shape.preset = (uint8_t)cu_shape_limit(cu_shape.preset + d, 0, ARP_NFACTORY - 1);
+            ash_load(&cu_shape.pat, cu_shape.preset);
+            cu_shape.steps = ARP_FACTORY[cu_shape.preset].steps;
+            cu_shape.bound = ARP_FACTORY[cu_shape.preset].bound;
+            cu_shape_step = 0;
+        }
+    } else if (cu_shape_page == 1) {
+        if (!k) {
+            cu_shape.steps = (uint8_t)cu_shape_limit(cu_shape.steps + d, 1, 64);
+            if (cu_shape_step >= cu_shape.steps)
+                cu_shape_step = cu_shape.steps - 1;
+        } else if (k == 1)
+            cu_shape.dir = (uint8_t)cu_shape_limit(cu_shape.dir + d, 0, AD_SHYFT);
+        else if (k == 2)
+            cu_shape.bound = (uint8_t)(d > 0);
+        else
+            cu_shape.root = (int8_t)cu_shape_limit(cu_shape.root + d, -1, 127);
+    } else {
+        if (k < 2) {
+            if (!k)
+                cu_shape_step = (uint8_t)cu_shape_limit(cu_shape_step + d, 0, cu_shape.steps - 1);
+            else
+                cu_shape_row = (uint8_t)cu_shape_limit(cu_shape_row + d, 0, 7);
+            at = cu_shape_cell();
+            cu_shape_len = at >= 0 ? ARP_LEN(cu_shape.pat.note[at]) : 1u;
+        } else if (k == 2) {
+            cu_shape_len = (uint8_t)cu_shape_limit(cu_shape_len + d, 1, 64);
+            if (at >= 0)
+                cu_shape.pat.note[at] = ARP_NOTE(cu_shape_step, cu_shape_row, cu_shape_len);
+        } else if (d > 0 && at < 0 && cu_shape.pat.n < ARP_NMAX)
+            cu_shape.pat.note[cu_shape.pat.n++] = ARP_NOTE(cu_shape_step, cu_shape_row, cu_shape_len);
+        else if (d < 0 && at >= 0) {
+            uint32_t i;
+            for (i = (uint32_t)at; i + 1u < cu_shape.pat.n; i++)
+                cu_shape.pat.note[i] = cu_shape.pat.note[i + 1u];
+            cu_shape.pat.note[--cu_shape.pat.n] = 0;
+        }
+    }
+    cu_shape_publish();
+}
 
 /* the layout (docs/CHORD-LAYOUT.md): Classic unless Options > Chord Keys says FM-1 (never on the SMK-37: its chord keys
  * are pads, CU_FN_KEYS 0) */
@@ -2103,9 +2175,15 @@ static void cu_param_turn(uint32_t mode, int32_t p, int32_t s, int pop)   /* pop
     if (CU_PAR[p].step > 1 || p == CR_P_SWING)    /* a value (rate, gate, swing, amount): at the knob's speed, snapped
                                                    * with OPT held; the choices one a detent */
         v = cu_kval(cs.par[mode][p], s, CU_PAR[p].min, CU_PAR[p].max, kn.snap);
+    else if (p == CR_P_DIV)
+        v = (int32_t)cr_div_turn((uint32_t)cs.par[mode][p], s);
     else
         v = cs.par[mode][p] + s;
     v = v < CU_PAR[p].min ? CU_PAR[p].min : v > CU_PAR[p].max ? CU_PAR[p].max : v;
+    if(mode==CR_PM_PATTERN && p==CR_P_PATTERN && v==CR_PATTERN_SHAYPE && cs.par[mode][p]!=v){
+        cs.par[mode][CR_P_RETRIG]=0;
+        cr_post(CRE_PARAM,mode,CR_P_RETRIG,0);
+    }
     cs.par[mode][p] = (int16_t)v;
     cr_post(CRE_PARAM, mode, (uint32_t)p, v);
     if (!pop) {
@@ -3371,6 +3449,10 @@ static void cu_oct_tap(uint32_t b)
     if (cu_layer()) {                             /* a layer: OCT- back, OCT+ confirms where there is something to
                                                    * confirm, else it closes too (the rule for every layer) */
         uint32_t l = cu_layer();
+        if (l == L_PERF && cu_shape_on()) {
+            cu_shape_page = (uint8_t)((cu_shape_page + (b == B_OCTUP ? 1u : 2u)) % 3u);
+            return;
+        }
         if (l == L_EDIT) {                        /* the engine picker: OCT+ keeps the sound, OCT- cancels */
             cu_pick_end(b == B_OCTUP);
             cu_layer_close();
@@ -4072,7 +4154,13 @@ static void cu_layer_knob(uint32_t l, uint32_t knob, int32_t s)   /* KNOB 1..4 (
         }
         break;
     case L_PERF:
-        cu_param_turn(cu_perf_mode(), CU_PERF_KNOB[cu_perf_mode()][knob], s, 0);
+        if (cu_shape_on()) {
+            if (cu_shape_page == 0 && knob)
+                cu_param_turn(CR_PM_PATTERN, CU_PERF_KNOB[CR_PM_PATTERN][knob], s, 0);
+            else
+                cu_shape_turn(knob, s);
+        } else
+            cu_param_turn(cu_perf_mode(), CU_PERF_KNOB[cu_perf_mode()][knob], s, 0);
         cu_hot_set(L_PERF, knob);                 /* (no popup: the cell turns hot) */
         break;
     case L_FX: {
@@ -6989,6 +7077,43 @@ static void cu_perf_cells(cr_screen_t *s)
     static const uint8_t ARROW[6] = {0, 96, 160, 160, 0, 255};
     static const char *const DIR[6] = {"Up", "Down", "Up-down", "Down-up", "Played", "Random"};
     uint32_t m = cu_perf_mode(), k;
+    if (cu_shape_on()) {
+        static const char *const label[3][4] = {{"Preset", "Division", "Gate", "Swing"},
+                                                {"Steps", "Direction", "Boundary", "Root"},
+                                                {"Step", "Row", "Length", "Note"}};
+        for (k = 0; k < 4u; k++) {
+            cr_cell_t *c = &s->cell[0][k];
+            c->flags = CR_CF_ON;
+            cu_cpy(c->label, label[cu_shape_page][k], sizeof c->label);
+            if (cu_shape_page == 0) {
+                if (!k)
+                    cu_cpy(c->value, ARP_FACTORY[cu_shape.preset].name, sizeof c->value);
+                else if (k == 1)
+                    cu_cpy(c->value, CU_DIV[cs.par[CR_PM_PATTERN][CR_P_DIV]], sizeof c->value);
+                else
+                    cu_int(c->value, cs.par[CR_PM_PATTERN][k == 2 ? CR_P_GATE : CR_P_SWING], 0, sizeof c->value);
+            } else if (cu_shape_page == 1) {
+                if (!k)
+                    cu_int(c->value, cu_shape.steps, 0, sizeof c->value);
+                else if (k == 1)
+                    cu_cpy(c->value, CU_SHDIR[cu_shape.dir], sizeof c->value);
+                else if (k == 2)
+                    cu_cpy(c->value, cu_shape.bound ? "Octave" : "Wrap", sizeof c->value);
+                else if (cu_shape.root < 0)
+                    cu_cpy(c->value, "Played", sizeof c->value);
+                else
+                    cu_int(c->value, cu_shape.root, 0, sizeof c->value);
+            } else if (k == 3)
+                cu_cpy(c->value, cu_shape_cell() >= 0 ? "On" : "Off", sizeof c->value);
+            else
+                cu_int(c->value,
+                       k == 0   ? cu_shape_step + 1u
+                       : k == 1 ? cu_shape_row + 1u
+                                : cu_shape_len,
+                       0, sizeof c->value);
+        }
+        return;
+    }
     for (k = 0; k < 4u; k++) {
         cr_cell_t *c = &s->cell[0][k];
         int32_t p = CU_PERF_KNOB[m][k], v;
@@ -7504,6 +7629,21 @@ static void cu_layer_screen(cr_screen_t *s, uint32_t l)
             cu_cat(s->label, " \267 on", sizeof s->label);
         }
         cu_perf_cells(s);
+        if (cu_shape_on()) {
+            s->kr_band = 3;
+            s->shape = cu_shape;
+            s->shape_step = cu_shape_step;
+            s->shape_row = cu_shape_row;
+            s->shape_edit = cu_shape_page == 2;
+            s->pos = (int8_t)cr_snap.shape_pos;
+            cu_cpy(s->label,
+                   cu_shape_page == 0   ? "SHAYPE / Play"
+                   : cu_shape_page == 1 ? "SHAYPE / Shape"
+                                        : "SHAYPE / Draw",
+                   sizeof s->label);
+            cu_cpy(s->footer, "OCT: page / HOME: back / hold SAVE", sizeof s->footer);
+            cu_cpy(s->mid, "SHAYPE", sizeof s->mid);
+        }
         cu_row_trace(s, "perf", seen, sizeof seen);
         break;
     }
@@ -8607,6 +8747,7 @@ static uint32_t cu_pool_find(uint32_t e, const char *name)
 /* power-on: the engine, the two parts' sounds, the settings mirror (the engine's defaults), the LED map */
 static void cr_ui_init(void)
 {
+    cr_shape_defaults(&cu_shape);
     uint32_t m, p, k;
     CR_STAGE(BS_UI_INIT);
     settings_init();                              /* (panel.c: the palette, LOWCUT, HOLD) */

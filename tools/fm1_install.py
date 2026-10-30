@@ -1359,7 +1359,7 @@ CR_IDS = [1, 6, 7, 8, 9, 10, 11, 12, 13] + list(range(14, 22)) + [22, 23] + list
 # (9 the VA patches, 10 11 the FM6 patches, 12 13 the CZ-1 tones, 14..21 the CZ-1 banks, 22 the FM TONE patches, 23 the
 # favourites (0.22 on; a firmware before it does not list 23, and a restore skips what the FM-1 does not list), 40..49
 # loops; no samples)
-KNOWN_IDS = set(FELUCCA_IDS) | set(CR_IDS)
+KNOWN_IDS = set(FELUCCA_IDS) | set(CR_IDS) | {69}
 BK_RC = {1: "invalid object, size or request", 2: "the data failed validation", 3: "busy: stop the loop on the FM-1",
          4: "flash write failed", 5: "stale session: start again"}
 PER4, PER5, CR_BLOCK = 0x50455234, 0x50455235, 192
@@ -1424,6 +1424,8 @@ def max_size(i):
 
 
 def object_name(i):
+    if i == 69:
+        return "session + SHAYPE"
     if i == 0:
         return "current music"
     if i == 1:
@@ -1676,7 +1678,7 @@ def restore(bl, f, progress=lambda done, total: None, busy=lambda: None):
             raise BackupError("unexpected sample reply")
         bk_check(a[-1])
 
-    order = [o for o in plan if o["id"] > 1] + [o for o in plan if o["id"] == 1] + [o for o in plan if o["id"] == 0]
+    order = [o for o in plan if o["id"] > 1 and o["id"] != 69] + [o for o in plan if o["id"] == 1] + [o for o in plan if o["id"] == 69] + [o for o in plan if o["id"] == 0]
     for o in order:
         i, b = o["id"], o["bytes"]
         if is_sample(i):

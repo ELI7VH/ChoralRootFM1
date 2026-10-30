@@ -11,6 +11,7 @@
  * fractions are Q8 (CR_ONE = 1.0), colours are cr_col_t (CR_COL_NONE: the field's default). */
 #pragma once
 #include <stdint.h>
+#include "cr_shape.h"
 
 #define CR_ONE 256u                 /* Q8 fractions: pct, ring, squeeze, phase */
 
@@ -260,6 +261,8 @@ typedef struct {
      * kr_band 1: the band is the keyboard instead of the picker (KEY: lit / lit_col / key_label, `label` top left);
      * kr_band 2: the arp (PERF while notes are stepped: name, note[] / n_notes, pos, hop_col as the arp screen's,
      * fitted to the band; `label` top left) */
+    cr_shape_t shape;
+    uint8_t shape_step,shape_row,shape_edit;
     uint8_t kr_band;                /* knobrow: 0 the picker, 1 the keyboard, 2 the arp */
     char page[16];                  /* edit8 / stack: the title line's right text ("OSC 2 \267 A") */
     cr_cell_t cell[CR_ED_ROWS][4];  /* rows of four cells (edit8: 1..2 rows) */

@@ -27,8 +27,46 @@ static const uint8_t CR_KEYMAP[2][12] = {
     { 2, 12, 1, 3, 12, 2, 12, 2, 3, 20, 3, 12 },   /* minor */
 };
 
-/* Divisions in 1/24-beat units (2/1 .. 1/32T), the order of cr_div_t (design.md 12.3). */
-static const uint8_t CR_DIV_UNITS[CR_DIV_COUNT] = { 192, 96, 48, 32, 24, 16, 12, 8, 6, 4, 3, 2 };
+/* Divisions in 1/96-beat units (old IDs retained, new triplet/dotted rates appended), the order of cr_div_t
+ * (design.md 12.3). */
+static const uint16_t CR_DIV_UNITS[CR_DIV_COUNT] = {768, 384, 192, 128, 96,  64,  48,  32, 24, 16, 12,
+                                                    8,   256, 6,   4,   576, 288, 144, 72, 36, 18, 9};
+static const uint8_t CR_DIV_ORDER[CR_DIV_COUNT] = {0, 15, 1, 16, 12, 2, 17, 3,  4,  18, 5,
+                                                   6, 19, 7, 8,  20, 9, 10, 21, 11, 13, 14};
+uint32_t cr_div_turn(uint32_t id, int delta)
+{
+    uint32_t i;
+    int at;
+    for (i = 0; i < CR_DIV_COUNT && CR_DIV_ORDER[i] != id; i++)
+        ;
+    at = (int)(i < CR_DIV_COUNT ? i : 11u) + delta;
+    if (at < 0)
+        at = 0;
+    if (at >= CR_DIV_COUNT)
+        at = CR_DIV_COUNT - 1;
+    return CR_DIV_ORDER[at];
+}
+void cr_shape_defaults(cr_shape_t *s)
+{
+    uint32_t i;
+    for (i = 0; i < sizeof *s; i++)
+        ((uint8_t *)s)[i] = 0;
+    ash_load(&s->pat, 0);
+    s->steps = 4;
+    s->dir = AD_WYNDO;
+    s->root = -1;
+}
+int cr_shape_valid(const cr_shape_t *s)
+{
+    uint32_t i;
+    if (!s->steps || s->steps > ARP_STEPS || s->dir > AD_SHYFT || s->bound > AB_OCT || s->preset >= ARP_NFACTORY ||
+        s->root < -1 || s->pat.n > ARP_NMAX)
+        return 0;
+    for (i = 0; i < s->pat.n; i++)
+        if (s->pat.note[i] & 0x8000u)
+            return 0;
+    return 1;
+}
 
 /* Pattern slots (design.md 12.4): bytes 1-13 = 1-based start offsets of patterns 1-12 (byte 13 ends p12),
  * then one byte per step: low nibble = chord-note index (0 = rest), high nibble = accent L,
@@ -49,10 +87,9 @@ static const uint8_t CR_PATTERNS[88] = {
     0xF1, 0x32, 0x81, 0x33, 0xC1, 0x34, 0x81, 0x32,         /* 11 drive */
     0xF1, 0x82, 0x31, 0xB3, 0x31, 0xC4, 0x31, 0xB5,         /* 12 ladder */
 };
-static const char *const CR_PATTERN_NAMES[CR_NPATTERN] = {
-    "pulse", "alberti", "waltz", "cascade", "updown", "syncopate",
-    "gallop", "skip", "ballad", "stride", "drive", "ladder",
-};
+static const char *const CR_PATTERN_NAMES[CR_NPATTERN] = {"pulse",     "alberti", "waltz", "cascade", "updown",
+                                                          "syncopate", "gallop",  "skip",  "ballad",  "stride",
+                                                          "drive",     "ladder",  "SHAYPE"};
 
 /* Performance defaults (design.md 21), columns in cr_param_t order:
  *                 RATE DIV          DIR RANGE GATE SWING RETRIG PATTERN ROTATE AMOUNT HOLD */
@@ -75,7 +112,7 @@ static const char *const CR_QUAL_NAMES[CR_Q_COUNT] = { "", "dim", "m", "", "sus"
 #define CR_BV_MIN (-2)           /* bass register, octaves from C2 (design.md 9) */
 #define CR_BV_MAX 4
 #define CR_BASS_OCT 2
-#define CR_BLOCK_UNITS 384u      /* 16 beats in 1/24-beat units: a whole number of every division's pair */
+#define CR_BLOCK_UNITS 4608u /* 48 beats in 1/96-beat units: divisible by every straight/triplet/dotted pair */
 #define CR_NONE 0xFFu
 
 enum { CR_EV_NOTE_OFF = 1, CR_EV_STRUM, CR_EV_CLOCK };
@@ -385,13 +422,13 @@ static void crx_strum_fire(cr_t *c, int vi, int note)
 }
 
 /* clocked modes (design.md 12.3/12.4/20): one step at a time, beat-accumulated (no drift). Step k of a
- * voice lands at anchor + pos(k), pos in 1/2400 beat = ((k/2)*200 + odd*2*swing) * div_units, and
- * 1/2400 beat = 25/bpm ms; anchor carries a remainder in 1/bpm ms so rounding never accumulates. */
+ * voice lands at anchor + pos(k), pos in 1/9600 beat = ((k/2)*200 + odd*2*swing) * div_units, and
+ * 1/9600 beat = 25/(4*bpm) ms; anchor carries a remainder in 1/(4*bpm) ms so rounding never accumulates. */
 static uint32_t crx_due_at(uint32_t anchor, uint32_t rem, uint32_t k, uint32_t du, uint32_t sw, uint32_t bpm)
 {
     uint32_t pos = ((k >> 1) * 200u + (k & 1u) * 2u * sw) * du;
     uint32_t x = rem + pos * 25u;
-    return anchor + (2u * x + bpm) / (2u * bpm);
+    return anchor + (2u * x + 4u * bpm) / (8u * bpm);
 }
 
 static void crx_build_clocked_seq(cr_t *c, cr_voice_t *v)
@@ -408,12 +445,43 @@ static void crx_build_clocked_seq(cr_t *c, cr_voice_t *v)
     }
 }
 
+/* Emit pure SHAYPE events through the native ownership/event pool, never directly to a synth. */
+static void crx_shape_step(cr_t *c, int vi)
+{
+    cr_voice_t *v = &c->v[vi];
+    const cr_shape_t *s = &c->shape;
+    uint8_t held[CR_OWN_MAX], pitch[ARP_ROWS], length[ARP_ROWS];
+    uint32_t n = ash_voicing(v->clk.seq, v->clk.nseq, s->root, held), step = v->clk.pos % s->steps, i, k;
+    const int16_t *p = c->par[CR_PM_PATTERN];
+    if (!step)
+        v->clk.shape_offset = s->dir == AD_RAND ? crx_randn(c, (int)n)
+                                                : ash_offset(&s->pat, s->steps, v->clk.pos / s->steps, n, s->dir, 0);
+    k = ash_events(&s->pat, step, held, n, v->clk.shape_offset, ash_bound(s->dir, s->bound), pitch, length);
+    for (i = 0; i < k; i++)
+        if (v->main.live && v->main.n < CR_OWN_MAX && crx_room(c, 1)) {
+            if (crx_note_start(c, CR_STREAM_MAIN, pitch[i], v->vel)) {
+                uint32_t bpm = c->bpm, du = CR_DIV_UNITS[p[CR_P_DIV]];
+                uint32_t dur = (2u * 25u * du * (uint32_t)p[CR_P_GATE] * length[i] + 4u * bpm) / (8u * bpm);
+                crx_own_append(&v->main, pitch[i]);
+                v->last_note = pitch[i];
+                v->has_last = 1;
+                crx_sched(c, dur ? dur : 1u, CR_EV_NOTE_OFF, CR_OWN_V(vi), vi, pitch[i]);
+            }
+        }
+}
+
 static void crx_fire_clocked_once(cr_t *c, int vi)
 {
     cr_voice_t *v = &c->v[vi];
     const int16_t *p = c->par[v->clk.mode];
     uint32_t du = CR_DIV_UNITS[p[CR_P_DIV]];
     int n = -1, vel = v->vel;
+    if (v->clk.mode == CR_PM_PATTERN && p[CR_P_PATTERN] == CR_PATTERN_SHAYPE) {
+        crx_shape_step(c, vi);
+        v->clk.pos++;
+        v->clk.step++;
+        return;
+    }
     if (v->clk.mode == CR_PM_ARP) {
         if (v->clk.nseq) {
             if (p[CR_P_DIR] == CR_DIR_RANDOM) n = v->clk.seq[crx_randn(c, v->clk.nseq)];
@@ -431,7 +499,7 @@ static void crx_fire_clocked_once(cr_t *c, int vi)
     }
     if (n >= 0 && v->main.live && v->main.n < CR_OWN_MAX && crx_room(c, 1)) {
         if (crx_note_start(c, CR_STREAM_MAIN, n, vel)) {
-            uint32_t bpm = c->bpm, dur = (2u * 25u * du * (uint32_t)p[CR_P_GATE] + bpm) / (2u * bpm);
+            uint32_t bpm = c->bpm, dur = (2u * 25u * du * (uint32_t)p[CR_P_GATE] + 4u * bpm) / (8u * bpm);
             crx_own_append(&v->main, n);
             v->last_note = (uint8_t)n; v->has_last = 1;
             crx_sched(c, dur ? dur : 1u, CR_EV_NOTE_OFF, CR_OWN_V(vi), vi, n);
@@ -455,8 +523,8 @@ static void crx_clocked_step(cr_t *c, int vi)
         sw = (uint32_t)p[CR_P_SWING];
         if (v->clk.step >= 2u) {   /* fold whole swing pairs into the anchor (exact, keeps numbers small) */
             uint32_t m = v->clk.step >> 1, total = m * 5000u * du + v->clk.rem;
-            v->clk.anchor += total / bpm;
-            v->clk.rem = (uint16_t)(total % bpm);
+            v->clk.anchor += total / (4u * bpm);
+            v->clk.rem = (uint16_t)(total % (4u * bpm));
             v->clk.step -= m * 2u;
         }
         due = crx_due_at(v->clk.anchor, v->clk.rem, v->clk.step, du, sw, bpm);
@@ -471,14 +539,14 @@ static void crx_clocked_step(cr_t *c, int vi)
 static void crx_phase_clocked(cr_t *c, cr_voice_t *v, int setpos)
 {
     const int16_t *p = c->par[v->clk.mode];
-    if (p[CR_P_RETRIG]) {
+    if (p[CR_P_RETRIG] && !(v->clk.mode == CR_PM_PATTERN && p[CR_P_PATTERN] == CR_PATTERN_SHAYPE)) {
         v->clk.anchor = c->now; v->clk.rem = 0; v->clk.step = 0;
     } else {
         uint32_t du = CR_DIV_UNITS[p[CR_P_DIV]], sw = (uint32_t)p[CR_P_SWING], bpm = c->bpm, k = 0;
         int32_t el = (int32_t)(c->now - c->clk_anchor);
         v->clk.anchor = c->clk_anchor; v->clk.rem = c->clk_rem;
         if (el > 0) {
-            k = (uint32_t)el * bpm / (du * 2500u);
+            k = (uint32_t)el * bpm * 4u / (du * 2500u);
             k = k > 2u ? k - 2u : 0u;
         }
         while ((int32_t)(crx_due_at(v->clk.anchor, v->clk.rem, k, du, sw, bpm) - c->now) <= 0) k++;
@@ -937,6 +1005,7 @@ void cr_init(cr_t *c, const cr_out_t *out)
     c->stream_on[CR_STREAM_RAW] = 0;
     for (m = 0; m < CR_PM_COUNT; m++)
         for (p = 0; p < CR_P_COUNT; p++) c->par[m][p] = CR_PAR_DEFAULT[m][p];
+    cr_shape_defaults(&c->shape);
     c->rng = 0x2545F491u;
     c->rec_slot = -1;
     c->disp_vi = CR_NONE;
@@ -954,14 +1023,14 @@ uint32_t cr_clock_epoch(const cr_t *c) { return c->clk_anchor; }
 void cr_tick(cr_t *c, uint32_t now_ms)
 {
     int d = 0, k;
-    uint32_t block = 2u * (960000u / c->bpm);
+    uint32_t block = 2u * (2880000u / c->bpm);
     c->now = now_ms;
     if (!c->started) cr_clock_reset(c);
-    /* keep the global grid anchor recent: advance it by whole 16-beat blocks (every division's grid) */
+    /* keep the global grid anchor recent: advance it by whole 48-beat blocks (every division's grid) */
     while ((int32_t)(c->now - c->clk_anchor) > 0 && c->now - c->clk_anchor > block) {
-        uint32_t total = 960000u + c->clk_rem;
-        c->clk_anchor += total / c->bpm;
-        c->clk_rem = (uint16_t)(total % c->bpm);
+        uint32_t total = 11520000u + c->clk_rem;
+        c->clk_anchor += total / (4u * c->bpm);
+        c->clk_rem = (uint16_t)(total % (4u * c->bpm));
         c->clk_units += CR_BLOCK_UNITS;
     }
     /* drain the due prefix in order; handlers only append later events behind it */
@@ -1711,4 +1780,10 @@ int cr_pending(const cr_t *c) { return c->nev; }
 const char *cr_pattern_name(int pattern)
 {
     return pattern >= 1 && pattern <= CR_NPATTERN ? CR_PATTERN_NAMES[pattern - 1] : "";
+}
+
+void cr_set_shape(cr_t *c, const cr_shape_t *shape)
+{
+    if (cr_shape_valid(shape))
+        c->shape = *shape;
 }

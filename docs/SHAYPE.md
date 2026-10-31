@@ -6,7 +6,7 @@ interface, note ownership and SAVE workflow. The public fork is
 [Quixotic7/ChoralRootFM1](https://github.com/Quixotic7/ChoralRootFM1) at
 `ec9c54fdd7a0a544e8ec82bec196db745868f057`.
 
-**Installed on TEST as ChoralRoot 0.27-wlshape3; SHAYPE Pattern 13 and Scale Keys selected, Perform enabled.**
+**Hardware-tested on TEST as ChoralRoot 0.27-wlshape3, with SHAYPE Pattern 13 and Scale Keys. TEST returned to CoralFlower 0.6.1-wlshape3 on 2026-10-31.**
 
 ## Controls
 
@@ -169,3 +169,10 @@ Selected settings read back exactly; every other object remains identical to the
 Physical listening and broad CPU/headroom acceptance remain separate. SHOW/GHOUL unchanged.
 
 ![Scale Keys option, native emulator render](images/scale-keys-option.png)
+
+## TEST returned to CoralFlower — 2026-10-31
+
+The user finished the ChoralRoot trial. Its current stored objects, matching firmware/source and receipt
+were archived locally before returning TEST to CoralFlower wlshape3 and restoring that firmware's earlier
+state. This does not change the tested ChoralRoot feature status above. Future installs need a fresh
+backup and stopped confirmation. SHOW/GHOUL remain untouched.

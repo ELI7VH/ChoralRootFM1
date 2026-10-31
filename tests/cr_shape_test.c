@@ -30,6 +30,26 @@ int main(void)
     step(260);
     ok(count('+', CR_STREAM_MAIN) == 2, "SHAYPE default starts two rows of the major chord");
     shape_end();
+    int base[8], ids[8], bn;
+    shape_start();K(48,1);step(260);bn=ons(ids,8,CR_STREAM_MAIN);
+    for(int i=0;i<bn;i++)base[i]=LOG[ids[i]].note;
+    shape_end();
+    for(int oct=-2;oct<=2;oct++) {
+        shape_start();C.shape.octave=(int8_t)oct;C.shape.root=100; /* legacy floor must not override octave */
+        K(48,1);step(260);int n=ons(ids,8,CR_STREAM_MAIN),same=n==bn;
+        for(int i=0;i<n&&i<bn;i++)if(LOG[ids[i]].note!=base[i]+12*oct)same=0;
+        ok(same,"SHAYPE octave shifts every chord row down/up in exact octaves, ignoring legacy floor");shape_end();
+    }
+    shape_start();K(48,1);step(260);clear();C.shape.octave=-1;step(260);
+    int changed=ons(ids,8,CR_STREAM_MAIN)>0;
+    for(int i=0;i<ons(ids,8,CR_STREAM_MAIN);i++)if(LOG[ids[i]].note>=60)changed=0;
+    ok(changed,"octave edit affects upcoming notes while the chord remains held");shape_end();
+    shape_start();C.shape.octave=-2;K(0,1);step(260);
+    ok(count('+',CR_STREAM_MAIN)==0,"downward octave drops pitches below MIDI zero without wrapping");shape_end();
+    shape_start();C.shape.octave=2;K(120,1);step(260);
+    ok(count('+',CR_STREAM_MAIN)==0,"upward octave drops pitches above MIDI127 without wrapping");shape_end();
+    cr_shape_t saved;cr_shape_defaults(&saved);saved.octave=3;
+    ok(!cr_shape_valid(&saved),"out-of-range octave rejected");
     for (int i = 0; i < CR_DIV_COUNT; i++) {
         unsigned id = cr_div_turn((unsigned)i, 0);
         ok(id == (unsigned)i, "division lookup preserves stored IDs");

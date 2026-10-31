@@ -60,7 +60,7 @@ int cr_shape_valid(const cr_shape_t *s)
 {
     uint32_t i;
     if (!s->steps || s->steps > ARP_STEPS || s->dir > AD_SHYFT || s->bound > AB_OCT || s->preset >= ARP_NFACTORY ||
-        s->root < -1 || s->pat.n > ARP_NMAX)
+        s->root < -1 || s->octave < -2 || s->octave > 2 || s->pat.n > ARP_NMAX)
         return 0;
     for (i = 0; i < s->pat.n; i++)
         if (s->pat.note[i] & 0x8000u)
@@ -451,23 +451,26 @@ static void crx_shape_step(cr_t *c, int vi)
     cr_voice_t *v = &c->v[vi];
     const cr_shape_t *s = &c->shape;
     uint8_t held[CR_OWN_MAX], pitch[ARP_ROWS], length[ARP_ROWS];
-    uint32_t n = ash_voicing(v->clk.seq, v->clk.nseq, s->root, held), step = v->clk.pos % s->steps, i, k;
+    uint32_t n = ash_voicing(v->clk.seq, v->clk.nseq, -1, held), step = v->clk.pos % s->steps, i, k;
     const int16_t *p = c->par[CR_PM_PATTERN];
     if (!step)
         v->clk.shape_offset = s->dir == AD_RAND ? crx_randn(c, (int)n)
                                                 : ash_offset(&s->pat, s->steps, v->clk.pos / s->steps, n, s->dir, 0);
     k = ash_events(&s->pat, step, held, n, v->clk.shape_offset, ash_bound(s->dir, s->bound), pitch, length);
-    for (i = 0; i < k; i++)
+    for (i = 0; i < k; i++) {
+        int note = (int)pitch[i] + 12 * s->octave;
+        if (note < 0 || note > 127) continue;
         if (v->main.live && v->main.n < CR_OWN_MAX && crx_room(c, 1)) {
-            if (crx_note_start(c, CR_STREAM_MAIN, pitch[i], v->vel)) {
+            if (crx_note_start(c, CR_STREAM_MAIN, note, v->vel)) {
                 uint32_t bpm = c->bpm, du = CR_DIV_UNITS[p[CR_P_DIV]];
                 uint32_t dur = (2u * 25u * du * (uint32_t)p[CR_P_GATE] * length[i] + 4u * bpm) / (8u * bpm);
-                crx_own_append(&v->main, pitch[i]);
-                v->last_note = pitch[i];
+                crx_own_append(&v->main, note);
+                v->last_note = note;
                 v->has_last = 1;
-                crx_sched(c, dur ? dur : 1u, CR_EV_NOTE_OFF, CR_OWN_V(vi), vi, pitch[i]);
+                crx_sched(c, dur ? dur : 1u, CR_EV_NOTE_OFF, CR_OWN_V(vi), vi, note);
             }
         }
+    }
 }
 
 static void crx_fire_clocked_once(cr_t *c, int vi)

@@ -19,7 +19,7 @@ OCT− / OCT+ cycle the three SHAYPE pages. HOME closes the layer.
 | Page | K1 | K2 | K3 | K4 |
 | --- | --- | --- | --- | --- |
 | Play | Starter preset | Division | Gate | Swing |
-| Shape | Steps (1–64) | Direction | Wrap / octave | Root floor (Played or MIDI pitch) |
+| Shape | Steps (1–64) | Direction | Wrap / octave | Octave (−2…+2) |
 | Draw | Step | Chord row (1–8) | Length (1–64 steps) | Add / remove note |
 
 K3 stretches an existing selected note. A pattern holds 62 notes; hidden steps return when STEPS is
@@ -110,3 +110,21 @@ Hold SAVE for global SAVE after drawing/editing SHAYPE.
 
 This verifies installation, settings persistence and limited real-target MIDI behavior. Physical listening,
 external clock/rate acceptance and broad CPU/headroom testing remain with the user.
+
+## Octave control — wlshape2
+
+Shape-page K4 is now **Octave −2…+2**, replacing the pitch-floor ROOT control. Each detent shifts
+all generated SHAYPE notes by 12 semitones; changes affect upcoming attacks without restarting the
+pattern. Notes already sounding finish normally. Out-of-range MIDI pitches are skipped.
+
+The previously reserved byte in the 132-byte SHAYPE data holds the signed octave. Older sessions
+read as octave0; their former ROOT byte is retained for layout compatibility and is ignored. Session
+v2 remains1156 bytes, settings remain192 bytes, with no new flash sectors or altered save workflow.
+Use native global SAVE to persist it. Older firmware ignores the added octave value when downgrading.
+
+Host validation: donor parity, 2800 native engine,483 loop,296 settings,236 backup,2030 SHAYPE full
+UBSan and16 UI/save/restore checks pass. Includes exact −24/−12/0/+12/+24 pitch offsets, edits during
+a held chord, MIDI bounds, label/limits and session save/revert. Build/hardware status follows the
+current installation receipt; wlshape2 is not yet installed at this checkpoint.
+
+![SHAYPE Octave −2, native emulator render](images/shaype-octave.png)

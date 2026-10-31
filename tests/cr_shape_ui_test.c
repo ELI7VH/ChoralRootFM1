@@ -32,10 +32,14 @@ int main(void)
     cu_perf_cells(&s);
     CHECK(!strcmp(s.cell[0][0].label, "Step") && !strcmp(s.cell[0][3].value, "On"),
           "native knob cells describe the selected note");
+    cu_shape_page=1;cu_shape_turn(3,-2);cr_screen_clear(&s);cu_perf_cells(&s);
+    CHECK(cu_shape.octave==-2 && cr.shape.octave==-2 && !strcmp(s.cell[0][3].label,"Octave"),"Shape K4 publishes signed octave and correct label");
+    cu_shape_turn(3,-10);CHECK(cu_shape.octave==-2,"octave lower limit");
+    cu_shape_turn(3,20);CHECK(cu_shape.octave==2,"octave upper limit");
     CHECK(cr_settings_commit() == 0, "native global SAVE stores SHAYPE with the session");
     cr_session_t session;
     CHECK(st_load(OBJ_SESSION, &session, sizeof session) == CSS_SIZE &&
-              cr_session_import(&session, &session, CSS_SIZE) == 1 && session.shape.steps == 64,
+              cr_session_import(&session, &session, CSS_SIZE) == 1 && session.shape.steps == 64 && session.shape.octave == 2,
           "session storage loads the drawn pattern");
     CHECK(t_capture() == 0 && find(man, nman, 69) && find(man, nman, 69)->size == CSS_SIZE,
           "backup object69 contains the saved SHAYPE session");
@@ -52,7 +56,7 @@ int main(void)
     cu_shape_page=0;cu_shape.preset=0;cu_shape_turn(0,-1);
     CHECK(!cu_shape_on() && cs.par[CR_PM_PATTERN][CR_P_PATTERN]==12,"turning past first starter returns to native patterns");
     cr_settings_revert();
-    CHECK(cu_shape.steps == 64, "native revert applies the saved SHAYPE pattern");
+    CHECK(cu_shape.steps == 64 && cu_shape.octave == 2, "native revert applies the saved SHAYPE pattern");
     printf("SHAYPE UI/storage: %u checks, %u failed\n", checks, fails);
     return fails != 0;
 }

@@ -665,7 +665,7 @@ static void cu_shape_turn(uint32_t k, int d)
         else if (k == 2)
             cu_shape.bound = (uint8_t)(d > 0);
         else
-            cu_shape.root = (int8_t)cu_shape_limit(cu_shape.root + d, -1, 127);
+            cu_shape.octave = (int8_t)cu_shape_limit(cu_shape.octave + d, -2, 2);
     } else {
         if (k < 2) {
             if (!k)
@@ -7079,7 +7079,7 @@ static void cu_perf_cells(cr_screen_t *s)
     uint32_t m = cu_perf_mode(), k;
     if (cu_shape_on()) {
         static const char *const label[3][4] = {{"Preset", "Division", "Gate", "Swing"},
-                                                {"Steps", "Direction", "Boundary", "Root"},
+                                                {"Steps", "Direction", "Boundary", "Octave"},
                                                 {"Step", "Row", "Length", "Note"}};
         for (k = 0; k < 4u; k++) {
             cr_cell_t *c = &s->cell[0][k];
@@ -7099,10 +7099,8 @@ static void cu_perf_cells(cr_screen_t *s)
                     cu_cpy(c->value, CU_SHDIR[cu_shape.dir], sizeof c->value);
                 else if (k == 2)
                     cu_cpy(c->value, cu_shape.bound ? "Octave" : "Wrap", sizeof c->value);
-                else if (cu_shape.root < 0)
-                    cu_cpy(c->value, "Played", sizeof c->value);
                 else
-                    cu_int(c->value, cu_shape.root, 0, sizeof c->value);
+                    cu_int(c->value, cu_shape.octave, 1, sizeof c->value);
             } else if (k == 3)
                 cu_cpy(c->value, cu_shape_cell() >= 0 ? "On" : "Off", sizeof c->value);
             else

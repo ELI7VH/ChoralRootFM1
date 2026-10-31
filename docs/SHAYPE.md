@@ -6,7 +6,7 @@ interface, note ownership and SAVE workflow. The public fork is
 [Quixotic7/ChoralRootFM1](https://github.com/Quixotic7/ChoralRootFM1) at
 `ec9c54fdd7a0a544e8ec82bec196db745868f057`.
 
-**Installed on TEST as ChoralRoot 0.27-wlshape2; SHAYPE Pattern 13 selected and Perform enabled.**
+**Installed on TEST as ChoralRoot 0.27-wlshape3; SHAYPE Pattern 13 and Scale Keys selected, Perform enabled.**
 
 ## Controls
 
@@ -160,6 +160,12 @@ Validation: 10,759 Scale Keys engine checks under full UBSan cover every tonic, 
 all extension combinations, four inversions, clean releases and SHAYPE phase retention. Existing
 2800engine/483loop/296settings/2030SHAYPE/236backup checks pass;23native UI/save/restore checks pass.
 Standard target build guards pass. Native emulator option/control screenshots and sound/release
-checks pass. The wlshape3 package is prepared for TEST; hardware acceptance follows installation.
+checks pass. Installed/reboot/readback verified on TEST as wlshape3, source81d9507, after the approved stopped/discard
+workflow and fresh wlshape2 backup. All original objects matched after firmware installation.
+Real target MIDI verified automatic Cmajor/Cminor, all four inversion positions, seven extension sets
+with independent removal, SHAYPE walking the six-note extended chord, and clean root/control release.
+Scale Keys is selected for the user; temporary MIDI Keys routing and test tonalities removed.
+Selected settings read back exactly; every other object remains identical to the saved original.
+Physical listening and broad CPU/headroom acceptance remain separate. SHOW/GHOUL unchanged.
 
 ![Scale Keys option, native emulator render](images/scale-keys-option.png)

@@ -6,7 +6,7 @@ interface, note ownership and SAVE workflow. The public fork is
 [Quixotic7/ChoralRootFM1](https://github.com/Quixotic7/ChoralRootFM1) at
 `ec9c54fdd7a0a544e8ec82bec196db745868f057`.
 
-**Installed on TEST as ChoralRoot 0.27-wlshape1; SHAYPE Pattern 13 selected and Perform enabled.**
+**Installed on TEST as ChoralRoot 0.27-wlshape2; SHAYPE Pattern 13 selected and Perform enabled.**
 
 ## Controls
 
@@ -125,6 +125,9 @@ Use native global SAVE to persist it. Older firmware ignores the added octave va
 Host validation: donor parity, 2800 native engine,483 loop,296 settings,236 backup,2030 SHAYPE full
 UBSan and16 UI/save/restore checks pass. Includes exact −24/−12/0/+12/+24 pitch offsets, edits during
 a held chord, MIDI bounds, label/limits and session save/revert. Build/hardware status follows the
-current installation receipt; wlshape2 is not yet installed at this checkpoint.
+current installation receipt. Installed on TEST after stopped/discard confirmation and a fresh backup;
+all stored objects read back byte-identical. Target MIDI octave−1:50/53/57, octave0:62/65/69,
+octave+1:74/77/81, exact12semitone shifts. Temporary test settings/session removed; original data
+read back exactly. Physical listening remains with the user.
 
 ![SHAYPE Octave −2, native emulator render](images/shaype-octave.png)

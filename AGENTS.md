@@ -10,5 +10,5 @@ Push only origin (ELI7VH/ChoralRootFM1), never upstream.
 - Backup object 69 is the session. Restore settings 1 before session 69; the native settings PUT clears the old session.
 - Native global SAVE persists SHAYPE. Do not introduce automatic musical-session saves.
 - Generate headers using tools/build.generate(), then run sh tools/test_shape.sh. Keep native build guards enabled.
-- TEST runs ChoralRoot 0.27-wlshape1 + SHAYPE, installed with stopped confirmation on 2026-10-30. CoralFlower wlshape3 is archived.
+- TEST runs ChoralRoot 0.27-wlshape2 + SHAYPE, installed with stopped/discard confirmation on 2026-10-31. CoralFlower wlshape3 is archived.
 - Future installation needs a fresh backup and stopped confirmation. SHOW and GHOUL are excluded.

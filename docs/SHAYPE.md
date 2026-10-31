@@ -1,4 +1,4 @@
-# ChoralRoot + SHAYPE — next test candidate
+# ChoralRoot + SHAYPE
 
 WaveLoop Shape Arp integrated with **ChoralRoot FM-1**, using its own chord/performance engine,
 interface, note ownership and SAVE workflow. The public fork is
@@ -6,7 +6,7 @@ interface, note ownership and SAVE workflow. The public fork is
 [Quixotic7/ChoralRootFM1](https://github.com/Quixotic7/ChoralRootFM1) at
 `ec9c54fdd7a0a544e8ec82bec196db745868f057`.
 
-**Built and host/emulator tested; not installed on hardware. TEST remains on CoralFlower wlshape2.**
+**Installed on TEST as ChoralRoot 0.27-wlshape1; SHAYPE Pattern 13 selected and Perform enabled.**
 
 ## Controls
 
@@ -57,8 +57,8 @@ last global SAVE. The fork's CLI and browser backup library restore settings **1
 settings PUT deliberately clears an older session. Session restore validates its record and locks
 saving until restart. Old clients/firmware may skip object 69, so use this fork's restore tools.
 
-CoralFlower and ChoralRoot song/loop/session formats are different. Installation is a separate next step,
-after a fresh TEST backup and stopped confirmation. If the native installer refuses the source firmware,
+CoralFlower and ChoralRoot song/loop/session formats are different. Keep a fresh backup and stop
+playback before switching families. If the native installer refuses the source firmware,
 follow its official-V15 bridge instructions; do not force through the refusal.
 
 ## Developer integration and checks
@@ -80,7 +80,7 @@ Core parity, 2800 existing engine checks, 483 loop checks, 296 settings checks, 
 2012 focused SHAYPE checks under full UBSan, and 13 UI/save/restore/redraw checks pass.
 The CLI installer and browser backup tests pass, including session-after-settings restore order.
 Native emulator input renders the pages and produces audio. Target XIP/RAM/POOL/ISR guards pass.
-Remote CI and physical sound/timing/CPU acceptance are separate; no hardware installation or listening is claimed.
+Remote CI and physical listening/broad CPU acceptance remain separate from the limited target check below.
 
 The unchanged WaveLoop core/fixtures are pinned in [SHAYPE-PROVENANCE.json](SHAYPE-PROVENANCE.json).
 No upstream PR or author message has been sent; this is an opt-in fork for review/reuse.
@@ -90,3 +90,23 @@ ChoralRoot: **Quixotic7 and contributors**, after their monome-grid choralroot e
 Felucca platform/engines: **Leo Kuroshita / Hügelton Instruments**. Other sound engines, fonts
 and dependencies retain their upstream credits in README.md and LICENSING.md. GPL-3.0-only;
 all original headers are retained. This is the ChoralRoot adapter; CoralFlower is a separate fork.
+
+## TEST installation — 2026-10-30
+
+Installed source `dc018a0`, package SHA256
+`6af5ee45c85396c0aac428ee6b3bb8338c579b20b3f59952ad2231f77cb083e3`, after explicit stopped confirmation.
+A fresh 27-object CoralFlower wlshape3 backup, source/package and receipt were archived before switching.
+Used the hash-verified official V15 bridge, then the native ChoralRoot installer; no force override.
+Reboot and full version/unit identity verified over the editor protocol. SHOW remains Switch Blade chain14;
+GHOUL is unchanged.
+
+The first boot contained an unrecognized legacy settings record; ChoralRoot used its native boot defaults.
+That record is preserved in the first-boot backup. Selected Pattern 13 and enabled Perform using a native
+validated settings record based on those boot defaults. A temporary MIDI Keys channel drove the actual
+key/chord engine for four seconds: 28 chord note-ons, 12 polyphonic pairs, no note-ons after release grace.
+The temporary input mapping was removed. Selected settings read back exactly; every other listed object
+matched the first-boot backup. The native saved session was empty and was not populated automatically.
+Hold SAVE for global SAVE after drawing/editing SHAYPE.
+
+This verifies installation, settings persistence and limited real-target MIDI behavior. Physical listening,
+external clock/rate acceptance and broad CPU/headroom testing remain with the user.

@@ -122,7 +122,8 @@ enum { CRS_USB_MASTER, CRS_USB_FIXED };
 #define CRS_FULL_SHORT 0x04u
 #define CRS_STICKY_AUTO 0x7Eu                /* bits 1 .. 6: Options (automatic); bit 0, LATCH, manual */
 #define CRS_LATCH(s) ((unsigned)(s)->sticky & 1u)
-#define CRS_LAYOUT(s) (((unsigned)(s)->sticky & CRS_LAYOUT_FM1) ? 1u : 0u)
+#define CRS_SCALE_KEYS 0x40u /* raw_sound spare bit6: optional third chord layout */
+#define CRS_LAYOUT(s) (((unsigned)(s)->raw_sound & CRS_SCALE_KEYS) ? 2u : (((unsigned)(s)->sticky & CRS_LAYOUT_FM1) ? 1u : 0u))
 #define CRS_FULLSHORT(s) (((unsigned)(s)->sticky & CRS_FULL_SHORT) ? 1u : 0u)
 #define CRS_SUSWIN_CODE(s) ((int)(((unsigned)(s)->sticky >> 3) & 15u))
 #define CRS_SUSWIN_MS(s) ((unsigned)(30 + 5 * CRS_SUSWIN_CODE(s)))

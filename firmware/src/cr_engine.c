@@ -323,7 +323,9 @@ static void crx_snapshot_spec(const cr_t *c, uint8_t *sq, uint8_t *sx)
 static void crx_build_base(const cr_t *c, cr_voice_t *v)
 {
     int q = v->sq, root = v->note_pressed, pc = v->pc_pressed;
-    if (c->key_on && !c->key_notes && !(v->zone & CR_Z_BASS) && !((v->zone & CR_Z_FULL) && c->full_chords == 2)) {   /* (Key plays Notes, a bass-side key: no chord. The
+    int sk = c->scale_keys && !v->zone;
+    if (sk) q = 0;
+    if (((c->key_on && !c->key_notes) || sk) && !(v->zone & CR_Z_BASS) && !((v->zone & CR_Z_FULL) && c->full_chords == 2)) {   /* (Key plays Notes, a bass-side key: no chord. The
                                                     * Full keyboard, Key plays Chords: the key's chord, as a lone root's
                                                     * on the Chords keyboard; until 0.22 every key there was a note) */
         int e = CR_KEYMAP[c->scale][crx_mod(v->pc_pressed - c->tonic, 12)], sh = e >> 3;
@@ -338,7 +340,21 @@ static void crx_build_base(const cr_t *c, cr_voice_t *v)
     v->rq = (uint8_t)q;
     v->root = (int16_t)root;
     v->pc = (uint8_t)pc;
-    v->nbase = (uint8_t)cr_chord_base_ex(root + v->transpose, (uint8_t)q, v->sx, c->sixth_up, v->base);
+    v->nbase = (uint8_t)cr_chord_base_ex(root + v->transpose, (uint8_t)q, sk ? 0 : v->sx, c->sixth_up, v->base);
+    if (sk) {
+        static const uint8_t degree[2][7] = {{0,2,4,5,7,9,11},{0,2,3,5,7,8,10}};
+        static const uint8_t hops[3] = {6,8,12};
+        const uint8_t *d = degree[c->scale == CR_SCALE_MINOR];
+        int at = 0, rel = crx_mod(root - c->tonic, 12);
+        while (at < 6 && d[at] != rel) at++;
+        unsigned ext = ((v->sx & 6u) ? 1u : 0u) | ((v->sx & 8u) ? 2u : 0u) | ((v->sx & 1u) ? 4u : 0u);
+        for (int j=0;j<3;j++) if ((ext >> j) & 1u) {
+            int ix=at+hops[j], interval=d[ix%7]+12*(ix/7)-d[at];
+            int note=root+v->transpose+interval;
+            if (j==0) v->sx=(uint8_t)((v->sx & ~6u) | (interval==11 ? 4u : 2u));
+            if (note>=0 && note<=127 && v->nbase<CR_CHORD_MAX) v->base[v->nbase++]=(uint8_t)note;
+        }
+    }
 }
 
 /* ======================================================= performance === */
@@ -581,7 +597,7 @@ static void crx_start_clocked(cr_t *c, int vi)
 
 static int crx_clocked_no_retrig(const cr_t *c, const cr_voice_t *v)
 {
-    return v->clk.on && !c->par[v->clk.mode][CR_P_RETRIG];
+    return v->clk.on && (!c->par[v->clk.mode][CR_P_RETRIG] || (v->clk.mode==CR_PM_PATTERN && c->par[CR_PM_PATTERN][CR_P_PATTERN]==CR_PATTERN_SHAYPE));
 }
 
 /* strum/slop sustain until release; harp gates; slop jitters timing only. Rates are 120-BPM reference
@@ -959,6 +975,27 @@ static void crx_modifier_press(cr_t *c, int m)
     }
 }
 
+/* WaveLoop Scale Keys: selected scale supplies quality and extensions; controls are momentary
+ * for extensions and selected for inversion. Rebuild through native ownership/phase handling. */
+void cr_set_scale_keys(cr_t *c, int enabled)
+{
+    if (c->scale_keys != (uint8_t)!!enabled) { c->mods_down=0; c->qn=0; }
+    c->scale_keys = (uint8_t)!!enabled;
+}
+void cr_scale_controls(cr_t *c, int inversion, unsigned extensions)
+{
+    unsigned sx = ((extensions & 1u) ? 2u : 0u) | ((extensions & 2u) ? 8u : 0u) | ((extensions & 4u) ? 1u : 0u);
+    if (!c->scale_keys) return;
+    int changed = c->mods_down != (uint8_t)(sx << 4);
+    c->mods_down = (uint8_t)(sx << 4);
+    c->qn = 0;
+    for (int i=0;i<CR_MAX_VOICES;i++) if (changed && c->v[i].used && !c->v[i].zone) {
+        c->v[i].sq=0; c->v[i].sx=(uint8_t)sx;
+        crx_transform_voice(c,i,0);
+    }
+    if (inversion>=0) cr_voicing_step(c,inversion-c->voicing);
+}
+
 static void crx_modifier_release(cr_t *c)
 {
     crx_rec_commit(c);
@@ -1204,6 +1241,9 @@ void cr_voicing_step(cr_t *c, int d)
         cr_voice_t *v = &c->v[i];
         if (!v->used || (v->zone && !((v->zone & CR_Z_FULL) && v->rq)) || (v->loop & CR_LOOP_FIXV))
             continue;                              /* (a loop step with its own voicing; a note with nothing to rotate) */
+        if (c->scale_keys && v->clk.on && v->clk.mode==CR_PM_PATTERN && c->par[CR_PM_PATTERN][CR_P_PATTERN]==CR_PATTERN_SHAYPE) {
+            crx_transform_voice(c,i,0); continue;
+        }
         crx_hush_voice(c, i);
         v->nnotes = (uint8_t)cr_voice_apply(v->base, v->nbase, nv, v->notes);
         crx_sound_voice(c, i);

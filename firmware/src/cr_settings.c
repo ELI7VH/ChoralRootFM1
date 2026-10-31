@@ -233,9 +233,9 @@ static void crs_sanitize(cr_settings_t *s)
         if (s->midi_ch[i] > 15u) s->midi_ch[i] = d.midi_ch[i];
     }
     CRS_FIX(clock_mode, 0, CRS_CLOCK_IN);
-    CRS_FIX(raw_sound, 0, 0x3F);                   /* (0.24: bits 1 .. 5 MIDI Keys' channel) */
+    CRS_FIX(raw_sound, 0, 0x7F);                   /* (0.24: bits 1 .. 5 MIDI Keys' channel) */
     if (CRS_MIDI_KEYS(s) > 16u)                    /* (no such channel: Off, Raw Chord Sound kept) */
-        s->raw_sound = (uint8_t)(s->raw_sound & 1u);
+        s->raw_sound = (uint8_t)(s->raw_sound & (1u | CRS_SCALE_KEYS));
     if ((s->view & 0x38u) || CRS_VIEW(s) > 5u)    /* (v9: bit 7 the lock, v12: bit 6 Dual Core On; 5 Geek Out 2
                                                     * since 0.22; an unknown bit or view: the default view, unlocked;
                                                     * Dual Core as the record has it: since 0.22 the default is On,
@@ -536,6 +536,7 @@ void cr_settings_apply(const cr_settings_t *s, cr_t *c, cr_settings_out_t *o)
     cr_set_ext_addition(c, (cr_extadd_t)s->extadd);
     cr_set_secret(c, (cr_secret_t)s->secret);
     cr_set_sixth_up(c, (int)CRS_SIXTH(s));         /* Options > 6th with 7th (bit 4 of pick_roots) */
+    cr_set_scale_keys(c, CRS_LAYOUT(s)==2u);
     cr_set_key(c, (int)CRS_KEY_ON(s), s->tonic, (cr_scale_t)CRS_SCALE(s));
     cr_set_key_plays(c, (int)CRS_KEY_PLAYS(s));
     cr_set_key_snap(c, (cr_keysnap_t)CRS_SNAP(s));
@@ -799,7 +800,7 @@ static void crs_capture(cr_settings_t *s)
         if (cs.ch[i])
             s->midi_ch[i] = (uint8_t)(cs.ch[i] - 1u);
     }
-    s->raw_sound = CRS_RAW_BYTE(cs.raw_sound, cs.midi_keys);
+    s->raw_sound = (uint8_t)(CRS_RAW_BYTE(cs.raw_sound, cs.midi_keys) | (cs.layout==2u ? CRS_SCALE_KEYS : 0u));
     s->loop_sync = cs.loop_len;
     s->loop_quant = cs.loop_quant;
     s->loop_count_in = cs.loop_count_in;

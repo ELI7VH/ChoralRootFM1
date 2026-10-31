@@ -15,6 +15,8 @@ cc -std=c11 -O2 -Wall -Wextra -Werror -pedantic -o build/host/cr_settings_test t
 build/host/cr_settings_test
 cc -std=c99 -O1 -Wall -Wextra -Wno-unused-function -Werror -pedantic -fsanitize=undefined -fno-sanitize-recover=all -o build/host/cr_shape_test tests/cr_shape_test.c firmware/src/cr_engine.c firmware/src/cr_settings.c
 build/host/cr_shape_test
+cc -std=c99 -O1 -Wall -Wextra -Wno-unused-function -Werror -pedantic -fsanitize=undefined -fno-sanitize-recover=all -o build/host/cr_scale_keys_test tests/cr_scale_keys_test.c firmware/src/cr_engine.c firmware/src/cr_settings.c
+build/host/cr_scale_keys_test
 for name in cr_backup_test cr_shape_ui_test; do
     cc -std=gnu11 -O1 -w -Itools/emu/web/compat -Ibuild/gen -Ifirmware/src -Itests -DCZ_FACTORY_RAW -o "build/host/$name" "tests/$name.c" -lm
     "build/host/$name"

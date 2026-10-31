@@ -693,9 +693,11 @@ static void cu_shape_turn(uint32_t k, int d)
 /* the layout (docs/CHORD-LAYOUT.md): Classic unless Options > Chord Keys says FM-1 (never on the SMK-37: its chord keys
  * are pads, CU_FN_KEYS 0) */
 static int cu_fm1(void) { return CU_FN_KEYS && cs.layout; }
+static int cu_scale_keys(void) { return CU_FN_KEYS && cs.layout == 2u; }
 static uint32_t cu_mod_of(uint32_t k)              /* chord block key k -> cr_mod_t, 0xFF none (B3 in Classic, the
                                                     * FM-1's roots C4 C#4) */
 {
+    if (cu_scale_keys()) return k==1u ? CR_MOD_M7 : k==3u ? CR_MOD_9 : k==5u ? CR_MOD_6 : 0xFFu;
     return k < 9u ? (cu_fm1() ? CU_MOD_OF_KEY_FM1[k] : CU_MOD_OF_KEY[k]) : 0xFFu;
 }
 static uint32_t cu_lbtn(uint32_t l)               /* layer l's button (NB: none; the LOCK layer's is LFO in FM-1) */
@@ -1237,7 +1239,7 @@ static const char *const O_NAME[O_N] = {"Play Style", "Extension Addition", "Sec
     "MIDI Clock", "View", "Motion", "Chord Names", "LEDs", "Hold Time", "USB Record", "USB Level", "USB Rate", "Dual Core", "Output",
     "Version",
     "Calibrate", "Reset Settings", "Safe Mode", "Flash Data"};
-static const int16_t O_MAX[O_N] = {2, 1, 2, 1, 10, 1, 16, 1, 127, CU_TOUCH_MAX, 2, CU_VCURVE_MAX, CU_ATSENS_MAX,
+static const int16_t O_MAX[O_N] = {2, 1, 2, 2, 10, 1, 16, 1, 127, CU_TOUCH_MAX, 2, CU_VCURVE_MAX, CU_ATSENS_MAX,
 #if BOARD_SMK37
                                    1,
 #endif
@@ -1251,7 +1253,7 @@ static int cu_opt_vis(uint32_t o)
     if (o >= cu_opt_n())
         return 0;
     if (o == O_LAYOUT || o == O_SUSWIN || o == O_FULLSHORT || o == O_MIDI_KEYS)
-        return CU_FN_KEYS && (o != O_SUSWIN || cs.layout);
+        return CU_FN_KEYS && (o != O_SUSWIN || cs.layout==1u);
     return 1;
 }
 static uint32_t cu_opt_next(uint32_t from, int32_t s)   /* SELECT in the Options: s listed entries on from entry
@@ -1458,7 +1460,7 @@ static void opt_text(uint32_t o, char *d, uint32_t n)
     case O_STYLE: cu_cpy(d, STYLE[v % 3], n); break;
     case O_EXTADD: cu_cpy(d, EXTADD[v & 1], n); break;
     case O_SECRET: cu_cpy(d, SECRET[v % 3], n); break;
-    case O_LAYOUT: cu_cpy(d, v ? "FM-1" : "Classic", n); break;
+    case O_LAYOUT: cu_cpy(d, v==2 ? "Scale Keys" : v ? "FM-1" : "Classic", n); break;
     case O_SUSWIN: cu_int(d, 30 + 5 * v, 0, n); cu_cat(d, " ms", n); break;
     case O_FULLSHORT: cu_cpy(d, ONOFF[v & 1], n); break;
     case O_MIDI_KEYS:
@@ -4372,10 +4374,10 @@ static uint32_t cu_mods_phys(void)                 /* bit cr_mod_t: the chord ke
     uint32_t k, m = 0;
     for (k = 0; k < 9u; k++)
         if (cu_mod_of(k) != 0xFFu && !cu.key_note[k] &&      /* (not the KEY layer's, nor a Full-keyboard note) */
-            !(cu_fm1() && ((CU_TK_MASK >> k) & 1u)) &&    /* (FM-1's type keys: the types they resolved to, below) */
+            !(cs.layout==1u && ((CU_TK_MASK >> k) & 1u)) &&    /* (FM-1's type keys: the types they resolved to, below) */
             (((cu.kheld & ~(uint32_t)cu.kpick) >> k) & 1u))
             m |= 1u << cu_mod_of(k);
-    return m | (cu_fm1() ? cu.tposted : 0u);
+    return m | (cs.layout==1u ? cu.tposted : 0u);
 #endif
 }
 static void cu_mods_trace(void)
@@ -4819,6 +4821,14 @@ static uint32_t cu_key_vel(uint32_t k)
 static void cu_fsc_press(uint32_t i);              /* Full K Shorts: F#5, G5 (below) */
 static void cu_fsc_release(uint32_t i);
 static uint32_t cu_cb_end(void) { return cu_fm1() ? CU_ROOT0_FM1 : CU_ROOT0; }   /* the chord block: the keys below */
+static void cu_scale_control(uint32_t key, int down)
+{
+    uint32_t mask = ((cu.kheld >> 1) & 1u) | (((cu.kheld >> 3) & 1u) << 1) | (((cu.kheld >> 5) & 1u) << 2);
+    uint32_t inv = down && !(key & 1u) ? key/2u : 255u;
+    cr_post(CRE_SCALE_CTRL, inv, 0, (int32_t)mask);
+    if (inv!=255u) { cu_popup_num((int32_t)inv,0,"","inversion",CR_COL_BLUE,0,3,4); }
+    cu_trace("scale keys: inversion %d extensions %u\n", inv==255u ? -1 : (int)inv,(unsigned)mask);
+}
 static void cu_key_press(uint32_t k)
 {
     uint32_t l;
@@ -4862,7 +4872,9 @@ static void cu_key_press(uint32_t k)
                     cu.kpick_t0 = cu_now();
                 cu_key_scale(k);
             }
-        } else if (cu_fm1() && ((CU_TK_MASK >> k) & 1u))
+        } else if (cu_scale_keys())
+            cu_scale_control(k,1);
+        else if (cu_fm1() && ((CU_TK_MASK >> k) & 1u))
             cu_tk_press(k);
         else if (cu_mod_of(k) != 0xFFu)
             cu_mod_press(k);
@@ -4939,6 +4951,8 @@ static void cu_key_release(uint32_t k)
         if ((cu.kpick >> k) & 1u)                  /* pressed as the KEY layer's: nothing to end (the layer may be
                                                     * closed by now) */
             cu.kpick &= (uint16_t)~(1u << k);
+        else if (cu_scale_keys() && k<7u)
+            cu_scale_control(k,0);
         else if (cu_fm1() && ((CU_TK_MASK >> k) & 1u))
             cu_tk_release(k);
         else if (cu_mod_of(k) != 0xFFu)
@@ -4960,7 +4974,7 @@ static void cu_key_release(uint32_t k)
 static void cu_layout_set(uint32_t fm1)
 {
     uint32_t k;
-    fm1 = CU_FN_KEYS && fm1;
+    fm1 = CU_FN_KEYS ? (fm1 > 2u ? 2u : fm1) : 0u;
     if (cs.layout == fm1)
         return;
     cu_tk_quiet();
@@ -4971,8 +4985,10 @@ static void cu_layout_set(uint32_t fm1)
     cu.kmidi = 0;
     cu.kheld = 0;
     cu.b3_pend = 0;
+    if (cs.layout==2u || fm1==2u) cu_unlatch();
     cs.layout = (uint8_t)fm1;
-    cu_trace("chord keys: layout %s\n", fm1 ? "FM-1" : "Classic");
+    cr_post(CRE_SCALE_KEYS,0,0,fm1==2u);
+    cu_trace("chord keys: layout %s\n", fm1==2u ? "Scale Keys" : fm1 ? "FM-1" : "Classic");
 }
 
 /* Options > Full K Shorts (docs/CHORD-LAYOUT.md "The Full keyboard"): on the Full keyboard F#5 (i 0) shows the
@@ -6652,6 +6668,16 @@ static void cr_leds(void)
                                                           * every key of their names too */
             cu_led(ld, CU_LK(k), (int)((lpcs & ~pcs) >> CU_KEY_PC(k)) & 1);
     }
+    if (cu_scale_keys() && !cu_full() && !cu_key_pick()) {
+        for (k=0;k<7u;k++) {
+            uint8_t q=cu_led_pos[CU_LK(k)%CU_LED_IDS];
+            if(q==0xFFu)continue;
+            uint8_t bit=(uint8_t)(1u<<(q&7u));unsigned col=q>>3;
+            nl[col]&=(uint8_t)~bit;nd[col]&=(uint8_t)~bit;nm[col]&=(uint8_t)~bit;nf[col]&=(uint8_t)~bit;
+            cu_led(nd,CU_LK(k),1);
+            cu_led(nl,CU_LK(k),(k&1u) ? (int)((cu.kheld>>k)&1u) : cr_snap.voicing==(int)(k/2u));
+        }
+    }
     for (k = 0; k < FM1_NCOL; k++) {
         if (cs.leds) {                                   /* STOCK: the idle ones lit, the active ones dark (two
                                                           * levels: the middle and the faint one are "idle" too) */
@@ -7776,7 +7802,7 @@ static void cu_options_screen(cr_screen_t *s)
                                                     * audio 6 % while it records: docs/USB-AUDIO.md "48 kHz") */
         cu_cpy(s->label, cs.usb48 ? "the computer picks the rate" : "48 kHz: not offered", sizeof s->label);
     else if (cu.opt_sel == O_LAYOUT)               /* (docs/CHORD-LAYOUT.md) */
-        cu_cpy(s->label, cs.layout ? "SUS: G#3 + A#3 \267 LOCK: LFO" : "SUS: C#4 \267 LOCK: B3", sizeof s->label);
+        cu_cpy(s->label, cs.layout==2u ? "F G A B: INV \267 F# G# A#: 7 9 13" : cs.layout ? "SUS: G#3 + A#3 \267 LOCK: LFO" : "SUS: C#4 \267 LOCK: B3", sizeof s->label);
     else if (cu.opt_sel == O_SUSWIN)
         cu_cpy(s->label, "G#3 A#3 together within it", sizeof s->label);
     else if (cu.opt_sel == O_FULLSHORT)

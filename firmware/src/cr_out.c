@@ -522,6 +522,7 @@ enum {
     CRE_MOD,          /* a: cr_mod_t, b: 1 = quiet (one of a batch: cr_mod_ex), v: down */
     CRE_MODLOCK,      /* v: LOCK on (cr_mod_lock) */
     CRE_MODTOUCH,     /* v: bit cr_mod_t: the chord keys physically held (cr_mod_touch) */
+    CRE_SCALE_KEYS, CRE_SCALE_CTRL,
     CRE_VOICING,      /* v: +-steps */
     CRE_BASS_VOICING, /* v: +-steps */
     CRE_PANIC,
@@ -661,6 +662,8 @@ static void cr_apply(const cr_ev_in_t *e)
     case CRE_MOD: cr_mod_ex(&cr, (cr_mod_t)e->a, e->v, e->b); break;
     case CRE_MODLOCK: cr_mod_lock(&cr, e->v); break;
     case CRE_MODTOUCH: cr_mod_touch(&cr, (uint8_t)e->v); break;
+    case CRE_SCALE_KEYS: cr_set_scale_keys(&cr,e->v); break;
+    case CRE_SCALE_CTRL: cr_scale_controls(&cr,e->a==255u ? -1 : (int)e->a,(unsigned)e->v); break;
     case CRE_VOICING: cr_voicing_step(&cr, e->v); break;
     case CRE_BASS_VOICING: cr_bass_voicing_step(&cr, e->v); break;
     case CRE_PANIC: cr_panic(&cr); cr_loop_panic(&crl); break;

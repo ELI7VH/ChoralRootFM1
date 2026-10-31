@@ -2,6 +2,7 @@
  * Real native UI, session SAVE, and backup/restore path for WaveLoop SHAYPE. */
 #define CR_SHAPE_EMBED 1
 #include "cr_backup_test.c"
+static void drain_controls(void){while(cr_evq_r!=cr_evq_w){cr_apply(&cr_evq[cr_evq_r%CR_EVQ]);cr_evq_r++;}}
 int main(void)
 {
     emu_flash_open();
@@ -36,7 +37,20 @@ int main(void)
     CHECK(cu_shape.octave==-2 && cr.shape.octave==-2 && !strcmp(s.cell[0][3].label,"Octave"),"Shape K4 publishes signed octave and correct label");
     cu_shape_turn(3,-10);CHECK(cu_shape.octave==-2,"octave lower limit");
     cu_shape_turn(3,20);CHECK(cu_shape.octave==2,"octave upper limit");
+    opt_set(O_LAYOUT,2);drain_controls();
+    CHECK(cs.layout==2 && cr.scale_keys && opt_get(O_LAYOUT)==2,"Scale Keys option reaches native engine");
+    char layout_name[32];opt_text(O_LAYOUT,layout_name,sizeof layout_name);
+    CHECK(!strcmp(layout_name,"Scale Keys"),"third layout has explicit option label");
+    cu.lock=0;cu_key_press(4);drain_controls();cu_key_release(4);drain_controls();
+    CHECK(cr.voicing==2,"A3 selects second inversion and keeps it after release");
+    cu_key_press(1);cu_key_press(3);cu_key_press(5);drain_controls();
+    CHECK(cr.mods_down==(11u<<4),"black key combination reaches 7/9/13 extension set");
+    cu_key_release(3);drain_controls();CHECK(cr.mods_down==(3u<<4),"releasing G sharp removes only the ninth");
+    cu_key_release(1);cu_key_release(5);drain_controls();CHECK(!cr.mods_down,"released black keys leave no extensions held");
+    cu.lock=L_PERF;
     CHECK(cr_settings_commit() == 0, "native global SAVE stores SHAYPE with the session");
+    persist_t stored;
+    CHECK(st_load(OBJ_SETTINGS,&stored,sizeof stored)==sizeof stored && CRS_LAYOUT(&stored.cr)==2u,"native global SAVE persists the Scale Keys layout bit");
     cr_session_t session;
     CHECK(st_load(OBJ_SESSION, &session, sizeof session) == CSS_SIZE &&
               cr_session_import(&session, &session, CSS_SIZE) == 1 && session.shape.steps == 64 && session.shape.octave == 2,

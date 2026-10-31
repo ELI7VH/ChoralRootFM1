@@ -194,6 +194,7 @@ typedef struct {
     cr_chord_t last_chord;           /* the last played chord (pad recording) */
     uint8_t disp_vi;                 /* voice shown on screen (0xFF = none) */
     uint8_t disp_valid, disp_q, disp_x, disp_pc, disp_n, disp_notes[CR_CHORD_MAX];
+    uint8_t scale_keys; /* optional WaveLoop chord layout; appended to preserve native field offsets */
 } cr_t;
 
 /* -------------------------------------------------------------- core --- */
@@ -227,6 +228,8 @@ enum { CR_MOD_UP, CR_MOD_DOWN, CR_MOD_HELD, CR_MOD_PRESS };
 void cr_mod_ex(cr_t *c, cr_mod_t m, int down, int quiet);
 void cr_mod_lock(cr_t *c, int on);
 void cr_mod_touch(cr_t *c, uint8_t held);          /* bit cr_mod_t: the chord keys physically held */
+void cr_set_scale_keys(cr_t *c, int enabled);
+void cr_scale_controls(cr_t *c, int inversion, unsigned extensions); /* inversion -1 keeps it; ext bits 7/9/13 */
 void cr_voicing_step(cr_t *c, int d);              /* KNOB 1: +1 / -1, clamp -12..12 */
 void cr_bass_voicing_step(cr_t *c, int d);         /* octaves, clamp -2..4 */
 void cr_panic(cr_t *c);

@@ -131,3 +131,35 @@ octave+1:74/77/81, exact12semitone shifts. Temporary test settings/session remov
 read back exactly. Physical listening remains with the user.
 
 ![SHAYPE Octave −2, native emulator render](images/shaype-octave.png)
+
+## Scale Keys — wlshape3
+
+Options → **Chord Keys → Scale Keys** selects the new layout. Classic and FM-1 remain available.
+Root keys from C4 upward automatically play chords from the selected tonic and Major/Minor scale.
+The low controls are silent on their own: hold a root to hear their changes.
+
+| Low keys | Action |
+| --- | --- |
+| F / G / A / B | Select root position / first / second / third inversion |
+| F♯ | Hold to add the scale's seventh |
+| G♯ | Hold to add the scale's ninth |
+| B♭ (A♯) | Hold to add the scale's thirteenth |
+
+The black keys combine: 7+9, 7+13, 9+13 or all three. Releasing one removes only its extension;
+releasing the white key keeps the selected inversion. With a plain triad, third inversion is an
+octave-up voicing; with a seventh chord it is the third inversion. Scale choice still uses the
+native KEY layer. Accidentals and alternate mappings are future work.
+
+The layout selection uses a formerly unused bit in the native settings byte; settings remain192
+bytes and session remains1156bytes. Native Options persistence applies to the layout; native global
+SAVE persists musical state such as inversion/pattern edits. Older firmware does not understand
+the Scale Keys flag and may reset that byte's RAW/MIDI Keys choices when downgrading; retain a backup.
+The low-key extension set is momentary; use Classic/FM-1 for the original chord-type latch behavior.
+
+Validation: 10,759 Scale Keys engine checks under full UBSan cover every tonic, Major/Minor degree,
+all extension combinations, four inversions, clean releases and SHAYPE phase retention. Existing
+2800engine/483loop/296settings/2030SHAYPE/236backup checks pass;23native UI/save/restore checks pass.
+Standard target build guards pass. Native emulator option/control screenshots and sound/release
+checks pass. The wlshape3 package is prepared for TEST; hardware acceptance follows installation.
+
+![Scale Keys option, native emulator render](images/scale-keys-option.png)
